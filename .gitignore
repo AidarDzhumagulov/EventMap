@@ -1,0 +1,26 @@
+# Env и конфиги с секретами
+.env
+.env.local
+atlas.hcl
+
+# Бинарники (результат go build)
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+/bin/
+
+# Тестовые артефакты
+*.test
+*.out
+coverage.html
+
+# OS файлы
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp

@@ -1,0 +1,10 @@
+syntax = "proto3";
+
+package users; 
+
+option go_package = "://github.com";
+
+message User {
+    string username = 1;
+    string role = 2;
+}

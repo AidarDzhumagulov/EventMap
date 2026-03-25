@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+package main;
+
+option go_package = "./;main"
+
+
+message CreateEventRequest {
+    string title = 1;
+    string description = 2;
+    double lat = 3;
+    double lon = 4;
+    string created_by = 5;
+    bool is_private = 6;
+}

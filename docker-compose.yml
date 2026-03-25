@@ -1,0 +1,32 @@
+services:
+  db:
+    image: postgres:16
+    container_name: postgres_event_map
+    environment: 
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
+      PGDATA: /data/postgres_trading
+    volumes:
+      - db:/data/postgres_trading
+    command: ["postgres", "-p", "${DB_PORT}"]
+    ports:
+      - "${DB_PORT}:${DB_PORT}"
+    networks:
+      - db
+    restart: unless-stopped
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -h 127.0.0.1 -p ${DB_PORT} -U ${DB_USER} -d ${DB_NAME} || exit 1",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+  
+networks:
+  db: { driver: bridge }
+
+volumes:
+  db:
