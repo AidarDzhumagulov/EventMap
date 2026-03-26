@@ -6,12 +6,23 @@ import (
 	"github.com/google/uuid"
 )
 
-type User struct {
-	ID       uuid.UUID `json:"id"`
+type RegisterUser struct {
 	Username string    `json:"username"`
 	Role     string    `json:"role"`
-	Rating   float32   `json:"rating"`
-	PasswordHash string `json:"password"`
+	Password string `json:"password"`
+}
+
+type User struct {
+	ID           uuid.UUID `json:"id" db:"id"`
+	Username     string    `json:"username" db:"username"`
+	Role         string    `json:"role" db:"role"`
+	Rating       float32   `json:"rating" db:"rating"`
+	PasswordHash string    `json:"-" db:"password"`
+}
+
+type LoginUser struct {
+	Username string    `json:"username"`
+	Password string `json:"password"`
 }
 
 type Event struct {
