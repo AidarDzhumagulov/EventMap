@@ -1,0 +1,47 @@
+name: event_map
+description: Event Map — social map of events for Bishkek and Almaty.
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.3.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # State Management
+  flutter_riverpod: ^2.5.1
+  riverpod_annotation: ^2.3.5
+
+  # Navigation
+  go_router: ^14.2.0
+
+  # Network
+  dio: ^5.4.3
+
+  # Secure token storage
+  flutter_secure_storage: ^9.0.0
+
+  # Map (OpenStreetMap, no API key needed. Tile provider swappable to 2GIS)
+  flutter_map: ^7.0.2
+  latlong2: ^0.9.1
+
+  # Fonts
+  google_fonts: ^6.2.1
+
+  # Utils
+  equatable: ^2.0.5
+  intl: ^0.19.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+  build_runner: ^2.4.9
+  riverpod_generator: ^2.4.0
+  custom_lint: ^0.6.4
+  riverpod_lint: ^2.3.10
+
+flutter:
+  uses-material-design: true

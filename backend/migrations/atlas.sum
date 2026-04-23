@@ -1,0 +1,6 @@
+h1:7acy25JWOHqcVbprNyoF0c3GJtQcacrYNsYq4sMvsio=
+20260324104427_create_users_table.sql h1:9HnC2BeLgIlVj5smAqKbUjylJxlKIy5VJ7VKnkp7U4s=
+20260324105800_add_uuid_default.sql h1:slG1m1U/tQRM+skUIHiykvEdYkQg1uct4knac0vt5WA=
+20260324111738_add_password.sql h1:f64mP3U9mPGzdB7xmWEM4bLf7I81ev12CfW4VIeAg9E=
+20260327083823_add_email.sql h1:nkdq89Trr9zFoAitSS8exTed9axvq2AVSrizCE8GIHs=
+20260422134712_add_categories.sql h1:CreWK8h+kmgkUApDicVh+J+mJPUG5IDXikuc5a2NpGg=
