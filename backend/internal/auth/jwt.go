@@ -12,7 +12,7 @@ var secretKey = os.Getenv("JWT_SECRET")
 
 func GenerateAccessToken(UserID uuid.UUID) (string, error) {
 
-	expiresAt := time.Now().Add(15 * time.Minute).Unix()
+	expiresAt := time.Now().Add(24 * time.Hour).Unix()
 
 	claims := jwt.MapClaims{
 		"user_id": UserID,

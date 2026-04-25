@@ -3,15 +3,16 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
-// На Android эмуляторе localhost = 10.0.2.2
-// На iOS симуляторе = localhost
-const _androidBaseUrl = 'http://10.0.2.2:8080';
-const _iosBaseUrl = 'http://localhost:8080';
+// В продакшене передаётся через --dart-define=API_BASE_URL=https://api.example.com
+// В dev-режиме: Android эмулятор = 10.0.2.2, iOS симулятор = localhost
+const _prodBaseUrl = String.fromEnvironment('API_BASE_URL');
 
-String get baseUrl =>
-    defaultTargetPlatform == TargetPlatform.android
-        ? _androidBaseUrl
-        : _iosBaseUrl;
+String get baseUrl {
+  if (_prodBaseUrl.isNotEmpty) return _prodBaseUrl;
+  return defaultTargetPlatform == TargetPlatform.android
+      ? 'http://10.0.2.2:8080'
+      : 'http://localhost:8080';
+}
 
 const _accessTokenKey = 'access_token';
 const _refreshTokenKey = 'refresh_token';
@@ -43,12 +44,30 @@ final dioClientProvider = Provider<Dio>((ref) {
         return handler.next(options);
       },
       onError: (error, handler) async {
-        // 401 — токен истёк, пробуем refresh
         if (error.response?.statusCode == 401) {
           final refreshToken = await storage.read(key: _refreshTokenKey);
           if (refreshToken != null) {
-            // TODO: вызов /refresh endpoint когда он будет на бэке
-            await storage.deleteAll();
+            try {
+              final refreshDio = Dio(BaseOptions(baseUrl: baseUrl));
+              final response = await refreshDio.post(
+                '/refresh',
+                options: Options(
+                  headers: {'Authorization': 'Bearer $refreshToken'},
+                ),
+              );
+              final newAccess = response.data['access_token'] as String;
+              final newRefresh = response.data['refresh_token'] as String;
+              await saveTokens(storage,
+                  accessToken: newAccess, refreshToken: newRefresh);
+
+              // Повторяем оригинальный запрос с новым токеном
+              final opts = error.requestOptions;
+              opts.headers['Authorization'] = 'Bearer $newAccess';
+              final retryResponse = await dio.fetch(opts);
+              return handler.resolve(retryResponse);
+            } catch (_) {
+              await storage.deleteAll();
+            }
           }
         }
         return handler.next(error);

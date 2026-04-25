@@ -3,11 +3,15 @@ package handler
 import (
 	"encoding/json"
 	"event-map/internal/auth"
+	"event-map/internal/middleware"
 	"event-map/internal/models"
 	"event-map/internal/repository"
+	"log"
 	"net/http"
 	"os"
+	"strings"
 
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -43,10 +47,13 @@ func (h *Handler) RegisterUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	isExists := h.userRepo.IsExist(registerUser.Email)
-
-	if isExists {
+	if h.userRepo.IsExist(registerUser.Email) {
 		http.Error(w, "Email already exist", http.StatusBadRequest)
+		return
+	}
+
+	if h.userRepo.IsUsernameExist(registerUser.Username) {
+		http.Error(w, "Username already exist", http.StatusBadRequest)
 		return
 	}
 
@@ -76,6 +83,7 @@ func (h *Handler) RegisterUser(w http.ResponseWriter, r *http.Request) {
 	err = h.userRepo.Create(newUser)
 
 	if err != nil {
+		log.Println("RegisterUser: ошибка создания пользователя:", err)
 		http.Error(w, "Ошибка при записи в БД", http.StatusInternalServerError)
 		return
 	}
@@ -127,6 +135,128 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 	}
 
 	refreshToken, err := auth.GenerateRefreshToken(user.ID)
+	if err != nil {
+		http.Error(w, "Ошибка при генерации refresh_token", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(tokenResponse{
+		AccessToken:  accessToken,
+		RefreshToken: refreshToken,
+	})
+}
+
+func (h *Handler) Me(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Разрешен только GET метод", http.StatusMethodNotAllowed)
+		return
+	}
+
+	userID, ok := middleware.GetUserID(r)
+	if !ok {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	user, err := h.userRepo.GetByID(userID)
+	if err != nil {
+		http.Error(w, "Пользователь не найден", http.StatusNotFound)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(user)
+}
+
+// PATCH /me/update — обновление профиля текущего пользователя
+func (h *Handler) UpdateMe(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPatch {
+		http.Error(w, "Разрешен только PATCH метод", http.StatusMethodNotAllowed)
+		return
+	}
+
+	userID, ok := middleware.GetUserID(r)
+	if !ok {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	var req models.UpdateProfileRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Неверный формат JSON", http.StatusBadRequest)
+		return
+	}
+
+	if req.Username == "" {
+		http.Error(w, "username обязателен", http.StatusBadRequest)
+		return
+	}
+
+	if h.userRepo.IsUsernameTakenByOther(req.Username, userID) {
+		http.Error(w, "Имя пользователя уже занято", http.StatusConflict)
+		return
+	}
+
+	user, err := h.userRepo.Update(userID, req.Username, req.AvatarURL)
+	if err != nil {
+		http.Error(w, "Ошибка обновления профиля", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(user)
+}
+
+func (h *Handler) Refresh(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Разрешен только POST метод", http.StatusMethodNotAllowed)
+		return
+	}
+
+	authHeader := r.Header.Get("Authorization")
+	tokenString := strings.TrimPrefix(authHeader, "Bearer ")
+	if tokenString == "" {
+		http.Error(w, "Refresh token required", http.StatusUnauthorized)
+		return
+	}
+
+	secretKey := os.Getenv("JWT_SECRET")
+	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+		return []byte(secretKey), nil
+	})
+	if err != nil || !token.Valid {
+		http.Error(w, "Invalid refresh token", http.StatusUnauthorized)
+		return
+	}
+
+	claims, ok := token.Claims.(jwt.MapClaims)
+	if !ok {
+		http.Error(w, "Invalid token claims", http.StatusUnauthorized)
+		return
+	}
+
+	userIDStr, ok := claims["user_id"].(string)
+	if !ok {
+		http.Error(w, "Invalid token claims", http.StatusUnauthorized)
+		return
+	}
+
+	userID, err := uuid.Parse(userIDStr)
+	if err != nil {
+		http.Error(w, "Invalid user id", http.StatusUnauthorized)
+		return
+	}
+
+	accessToken, err := auth.GenerateAccessToken(userID)
+	if err != nil {
+		http.Error(w, "Ошибка при генерации access_token", http.StatusInternalServerError)
+		return
+	}
+
+	refreshToken, err := auth.GenerateRefreshToken(userID)
 	if err != nil {
 		http.Error(w, "Ошибка при генерации refresh_token", http.StatusInternalServerError)
 		return

@@ -97,6 +97,9 @@ class AuthRepository {
       if (body is String && body.contains('Email already exist')) {
         return 'Email уже зарегистрирован';
       }
+      if (body is String && body.contains('Username already exist')) {
+        return 'Имя пользователя уже занято';
+      }
       return 'Неверные данные';
     }
     if (statusCode == 500) return 'Ошибка сервера, попробуй позже';

@@ -7,9 +7,31 @@ import (
 	"strings"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 )
 
 var secretKey = os.Getenv("JWT_SECRET")
+
+type contextKey string
+
+const userIDKey contextKey = "user_id"
+
+// GetUserID извлекает user_id из контекста запроса
+func GetUserID(r *http.Request) (uuid.UUID, bool) {
+	val := r.Context().Value(userIDKey)
+	if val == nil {
+		return uuid.UUID{}, false
+	}
+	str, ok := val.(string)
+	if !ok {
+		return uuid.UUID{}, false
+	}
+	id, err := uuid.Parse(str)
+	if err != nil {
+		return uuid.UUID{}, false
+	}
+	return id, true
+}
 
 func AuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -35,7 +57,7 @@ func AuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
 
 		userID := claims["user_id"]
 
-		ctx := context.WithValue(r.Context(), "user_id", userID)
+		ctx := context.WithValue(r.Context(), userIDKey, userID)
 		r = r.WithContext(ctx)
 		next(w, r)
 	}

@@ -3,6 +3,7 @@ package main
 import (
 	"event-map/core"
 	"event-map/internal/handler"
+	"event-map/internal/middleware"
 	"event-map/internal/repository"
 	"log"
 	"net/http"
@@ -42,10 +43,53 @@ func main() {
 
 	http.HandleFunc("/ping", pingHandler)
 
+	storage := core.NewStorage()
+
 	userRepo := repository.NewUserRepository(db)
 	h := handler.NewHandler(userRepo)
+
+	uploadHandler := handler.NewUploadHandler(storage)
+	http.HandleFunc("/upload", middleware.AuthMiddleware(uploadHandler.Upload))
 	http.HandleFunc("/register", h.RegisterUser)
 	http.HandleFunc("/login", h.Login)
+	http.HandleFunc("/refresh", h.Refresh)
+	http.HandleFunc("/me", middleware.AuthMiddleware(h.Me))
+	http.HandleFunc("/me/update", middleware.AuthMiddleware(h.UpdateMe))
+
+	categoryRepo := repository.NewCategoryRepository(db)
+	categoryHandler := handler.NewCategoryHandler(categoryRepo)
+	http.HandleFunc("/categories", categoryHandler.GetCategories)
+
+	eventRepo := repository.NewEventRepository(db)
+	eventHandler := handler.NewEventHandler(eventRepo)
+	http.HandleFunc("/events", middleware.AuthMiddleware(eventHandler.GetEvents))
+	http.HandleFunc("/events/create", middleware.AuthMiddleware(eventHandler.CreateEvent))
+	http.HandleFunc("/events/detail", middleware.AuthMiddleware(eventHandler.GetEvent))
+	http.HandleFunc("/events/my", middleware.AuthMiddleware(eventHandler.GetMyEvents))
+
+	memberRepo := repository.NewEventMemberRepository(db)
+	memberHandler := handler.NewEventMemberHandler(memberRepo, eventRepo)
+	http.HandleFunc("/events/join", middleware.AuthMiddleware(memberHandler.Join))
+	http.HandleFunc("/events/leave", middleware.AuthMiddleware(memberHandler.Leave))
+	http.HandleFunc("/events/my-status", middleware.AuthMiddleware(memberHandler.GetMyStatus))
+	http.HandleFunc("/events/members", middleware.AuthMiddleware(memberHandler.GetMembers))
+	http.HandleFunc("/events/update", middleware.AuthMiddleware(eventHandler.UpdateEvent))
+	http.HandleFunc("/events/delete", middleware.AuthMiddleware(eventHandler.DeleteEvent))
+
+	savedRepo := repository.NewSavedEventRepository(db)
+	savedHandler := handler.NewSavedEventHandler(savedRepo)
+	http.HandleFunc("/events/save", middleware.AuthMiddleware(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodPost:
+			savedHandler.Save(w, r)
+		case http.MethodDelete:
+			savedHandler.Unsave(w, r)
+		default:
+			http.Error(w, "Метод не поддерживается", http.StatusMethodNotAllowed)
+		}
+	}))
+	http.HandleFunc("/events/saved", middleware.AuthMiddleware(savedHandler.GetSaved))
+	http.HandleFunc("/events/is-saved", middleware.AuthMiddleware(savedHandler.IsSaved))
 
 	log.Println("Сервер Event Map запущен")
 

@@ -12,13 +12,14 @@ class EventModel {
   final String cityName;
   final DateTime startTime;
   final DateTime? endTime;
-  final String creatorUsername;
+  final String createdBy;
   final String? creatorAvatarUrl;
   final String? coverUrl;
   final EventPrivacy privacy;
   final EventStatus status;
   final int membersCount;
   final int? maxMembers;
+  final int? categoryId;
   final String category;
   final String categoryEmoji;
 
@@ -30,16 +31,78 @@ class EventModel {
     required this.cityName,
     required this.startTime,
     this.endTime,
-    required this.creatorUsername,
+    required this.createdBy,
     this.creatorAvatarUrl,
     this.coverUrl,
     required this.privacy,
     required this.status,
     required this.membersCount,
     this.maxMembers,
+    this.categoryId,
     required this.category,
     required this.categoryEmoji,
   });
+
+  factory EventModel.fromJson(Map<String, dynamic> json) {
+    return EventModel(
+      id: json['id'] as String,
+      title: json['title'] as String,
+      description: json['description'] as String? ?? '',
+      location: LatLng(
+        (json['lat'] as num).toDouble(),
+        (json['lon'] as num).toDouble(),
+      ),
+      cityName: json['city_name'] as String,
+      startTime: DateTime.parse(json['start_time'] as String),
+      endTime: json['end_time'] != null
+          ? DateTime.parse(json['end_time'] as String)
+          : null,
+      coverUrl: json['cover_url'] as String?,
+      privacy: (json['is_private'] as bool)
+          ? EventPrivacy.private
+          : EventPrivacy.public,
+      status: _parseStatus(json['status'] as String? ?? 'upcoming'),
+      maxMembers: json['max_members'] as int?,
+      categoryId: json['category_id'] as int?,
+      createdBy: json['created_by'] as String,
+      membersCount: (json['members_count'] as int?) ?? 0,
+      category: '',
+      categoryEmoji: '📍',
+    );
+  }
+
+  static EventStatus _parseStatus(String s) {
+    switch (s) {
+      case 'ongoing':
+        return EventStatus.ongoing;
+      case 'finished':
+        return EventStatus.finished;
+      default:
+        return EventStatus.upcoming;
+    }
+  }
+
+  EventModel copyWith({int? membersCount}) {
+    return EventModel(
+      id: id,
+      title: title,
+      description: description,
+      location: location,
+      cityName: cityName,
+      startTime: startTime,
+      endTime: endTime,
+      createdBy: createdBy,
+      creatorAvatarUrl: creatorAvatarUrl,
+      coverUrl: coverUrl,
+      privacy: privacy,
+      status: status,
+      membersCount: membersCount ?? this.membersCount,
+      maxMembers: maxMembers,
+      categoryId: categoryId,
+      category: category,
+      categoryEmoji: categoryEmoji,
+    );
+  }
 
   bool get isPrivate => privacy == EventPrivacy.private;
   bool get isFull => maxMembers != null && membersCount >= maxMembers!;

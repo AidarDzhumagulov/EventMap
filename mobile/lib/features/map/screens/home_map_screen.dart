@@ -1,13 +1,22 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../../../core/theme.dart';
 import '../../../models/event_model.dart';
+import '../../event/screens/event_detail_screen.dart';
+import '../../feed/screens/feed_screen.dart';
+import '../../profile/screens/profile_screen.dart';
+import '../../saved/screens/saved_screen.dart';
 import '../providers/events_provider.dart';
+import '../repository/category_repository.dart';
 import '../widgets/event_bottom_sheet.dart';
 import '../widgets/event_marker.dart';
+import 'create_event_screen.dart';
 
 class HomeMapScreen extends ConsumerStatefulWidget {
   const HomeMapScreen({super.key});
@@ -18,27 +27,38 @@ class HomeMapScreen extends ConsumerStatefulWidget {
 
 class _HomeMapScreenState extends ConsumerState<HomeMapScreen> {
   final MapController _mapController = MapController();
+  final TextEditingController _searchController = TextEditingController();
   int _selectedNavIndex = 0;
+  Timer? _searchDebounce;
 
-  // OpenStreetMap tile — бесплатно, без ключа
-  // Для переключения на 2GIS — меняем urlTemplate
-  static const _osmTile =
-      'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+  @override
+  void dispose() {
+    _searchController.dispose();
+    _searchDebounce?.cancel();
+    super.dispose();
+  }
 
-  // 2GIS tile (требует API ключ, раскомментить когда будет готов):
-  // static const _2gisTile =
-  //     'https://tile2.maps.2gis.com/tiles?x={x}&y={y}&z={z}&v=1&r=g&ts=online_sd';
+  static const _dgisApiKey = String.fromEnvironment('DGIS_API_KEY');
+  static const _2gisTile =
+      'https://tile2.maps.2gis.com/tiles?x={x}&y={y}&z={z}&v=1&r=g&ts=online_sd&key=$_dgisApiKey';
 
   @override
   Widget build(BuildContext context) {
-    final events = ref.watch(eventsProvider);
+    final selectedCity = ref.watch(selectedCityProvider);
+    final eventsAsync = ref.watch(filteredEventsProvider(selectedCity));
     final selectedEvent = ref.watch(selectedEventProvider);
     final mapCenter = ref.watch(mapCenterProvider);
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      extendBody: true,
-      body: Stack(
+      extendBody: _selectedNavIndex == 0,
+      body: _selectedNavIndex == 3
+          ? const ProfileScreen()
+          : _selectedNavIndex == 2
+              ? const SavedScreen()
+              : _selectedNavIndex == 1
+                  ? const FeedScreen()
+                  : Stack(
         children: [
           // Карта
           FlutterMap(
@@ -55,29 +75,33 @@ class _HomeMapScreenState extends ConsumerState<HomeMapScreen> {
             children: [
               // Тайлы карты
               TileLayer(
-                urlTemplate: _osmTile,
+                urlTemplate: _2gisTile,
                 userAgentPackageName: 'com.eventmap.event_map',
                 maxZoom: 19,
               ),
               // Маркеры событий
               MarkerLayer(
-                markers: events.map((event) {
-                  final isSelected = selectedEvent?.id == event.id;
-                  return Marker(
-                    point: event.location,
-                    width: isSelected ? 160 : 60,
-                    height: 56,
-                    alignment: Alignment.topCenter,
-                    child: EventMarker(
-                      event: event,
-                      isSelected: isSelected,
-                      onTap: () {
-                        ref.read(selectedEventProvider.notifier).state = event;
-                        _mapController.move(event.location, 14);
-                      },
-                    ),
-                  );
-                }).toList(),
+                markers: eventsAsync.maybeWhen(
+                  data: (events) => events.map((event) {
+                    final isSelected = selectedEvent?.id == event.id;
+                    return Marker(
+                      point: event.location,
+                      width: isSelected ? 160 : 60,
+                      height: 56,
+                      alignment: Alignment.topCenter,
+                      child: EventMarker(
+                        event: event,
+                        isSelected: isSelected,
+                        onTap: () {
+                          ref.read(selectedEventProvider.notifier).state =
+                              event;
+                          _mapController.move(event.location, 14);
+                        },
+                      ),
+                    );
+                  }).toList(),
+                  orElse: () => [],
+                ),
               ),
             ],
           ),
@@ -122,6 +146,43 @@ class _HomeMapScreenState extends ConsumerState<HomeMapScreen> {
             child: _buildCategoryFilters(),
           ),
 
+          // Результаты поиска
+          _buildSearchResults(eventsAsync),
+
+          // Индикатор загрузки / ошибки
+          eventsAsync.when(
+            data: (_) => const SizedBox.shrink(),
+            loading: () => const Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: LinearProgressIndicator(
+                backgroundColor: Colors.transparent,
+                color: AppColors.primary,
+                minHeight: 2,
+              ),
+            ),
+            error: (e, _) => Positioned(
+              bottom: 120,
+              left: 16,
+              right: 16,
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                decoration: BoxDecoration(
+                  color: AppColors.surface,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.redAccent.withOpacity(0.4)),
+                ),
+                child: const Text(
+                  'Не удалось загрузить события',
+                  style: TextStyle(color: Colors.redAccent, fontSize: 13),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            ),
+          ),
+
           // Кнопка "моё местоположение"
           Positioned(
             bottom: selectedEvent != null ? 320 : 110,
@@ -131,17 +192,15 @@ class _HomeMapScreenState extends ConsumerState<HomeMapScreen> {
 
           // Bottom sheet события
           if (selectedEvent != null)
-            Positioned(
-              bottom: 0,
-              left: 0,
-              right: 0,
+            Positioned.fill(
               child: const EventBottomSheet(),
             ),
         ],
       ),
 
-      // FAB — добавить событие
-      floatingActionButton: selectedEvent == null
+      // FAB — добавить событие (только на вкладке карты)
+
+      floatingActionButton: _selectedNavIndex == 0 && selectedEvent == null
           ? Container(
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(18),
@@ -155,7 +214,17 @@ class _HomeMapScreenState extends ConsumerState<HomeMapScreen> {
               ),
               child: FloatingActionButton.extended(
                 onPressed: () {
-                  // TODO: create event screen
+                  final center = ref.read(mapCenterProvider);
+                  final city = ref.read(selectedCityProvider);
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => CreateEventScreen(
+                        initialLat: center.latitude,
+                        initialLon: center.longitude,
+                        initialCity: city,
+                      ),
+                    ),
+                  );
                 },
                 backgroundColor: AppColors.primary,
                 foregroundColor: AppColors.background,
@@ -172,40 +241,63 @@ class _HomeMapScreenState extends ConsumerState<HomeMapScreen> {
           : null,
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
 
-      // Bottom navigation bar
-      bottomNavigationBar: selectedEvent == null
-          ? _buildBottomNavBar()
-          : null,
+      // Bottom navigation bar — скрываем только когда открыт bottom sheet на карте
+      bottomNavigationBar:
+          (_selectedNavIndex == 0 && selectedEvent != null)
+              ? null
+              : _buildBottomNavBar(),
     );
   }
 
   Widget _buildSearchBar() {
+    final query = ref.watch(searchQueryProvider);
     return Expanded(
-      child: GestureDetector(
-        onTap: () {
-          // TODO: search screen
-        },
-        child: Container(
-          height: 48,
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          decoration: BoxDecoration(
-            color: AppColors.surfaceVariant,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: AppColors.glassBorder),
+      child: Container(
+        height: 48,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        decoration: BoxDecoration(
+          color: AppColors.surfaceVariant,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: query.isNotEmpty ? AppColors.primary : AppColors.glassBorder,
           ),
-          child: Row(
-            children: [
-              const Icon(Icons.search_rounded,
-                  color: AppColors.textHint, size: 20),
-              const SizedBox(width: 10),
-              Text(
-                'Поиск событий...',
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      fontSize: 14,
-                    ),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.search_rounded,
+                color: AppColors.textHint, size: 20),
+            const SizedBox(width: 8),
+            Expanded(
+              child: TextField(
+                controller: _searchController,
+                style: const TextStyle(
+                    color: AppColors.textPrimary, fontSize: 14),
+                decoration: const InputDecoration(
+                  hintText: 'Поиск событий...',
+                  hintStyle:
+                      TextStyle(color: AppColors.textHint, fontSize: 14),
+                  border: InputBorder.none,
+                  isDense: true,
+                  contentPadding: EdgeInsets.zero,
+                ),
+                onChanged: (value) {
+                  _searchDebounce?.cancel();
+                  _searchDebounce = Timer(const Duration(milliseconds: 400), () {
+                    ref.read(searchQueryProvider.notifier).state = value;
+                  });
+                },
               ),
-            ],
-          ),
+            ),
+            if (query.isNotEmpty)
+              GestureDetector(
+                onTap: () {
+                  _searchController.clear();
+                  ref.read(searchQueryProvider.notifier).state = '';
+                },
+                child: const Icon(Icons.close_rounded,
+                    color: AppColors.textHint, size: 18),
+              ),
+          ],
         ),
       ),
     );
@@ -268,7 +360,9 @@ class _HomeMapScreenState extends ConsumerState<HomeMapScreen> {
       BuildContext context, WidgetRef ref, String city, LatLng coords) {
     return GestureDetector(
       onTap: () {
+        ref.read(selectedCityProvider.notifier).state = city;
         ref.read(mapCenterProvider.notifier).state = coords;
+        ref.read(selectedEventProvider.notifier).state = null;
         _mapController.move(coords, 13);
         Navigator.pop(context);
       },
@@ -292,15 +386,131 @@ class _HomeMapScreenState extends ConsumerState<HomeMapScreen> {
     );
   }
 
+  Widget _buildSearchResults(AsyncValue<List<EventModel>> eventsAsync) {
+    final query = ref.watch(searchQueryProvider);
+    if (query.isEmpty) return const SizedBox.shrink();
+
+    final topOffset = MediaQuery.of(context).padding.top + 80.0;
+
+    return Positioned(
+      top: topOffset,
+      left: 16,
+      right: 16,
+      child: Material(
+        color: Colors.transparent,
+        child: Container(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.45,
+          ),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppColors.glassBorder),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.3),
+                blurRadius: 20,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: eventsAsync.when(
+            loading: () => const Padding(
+              padding: EdgeInsets.all(20),
+              child: Center(
+                child: CircularProgressIndicator(
+                    strokeWidth: 2, color: AppColors.primary),
+              ),
+            ),
+            error: (_, __) => const Padding(
+              padding: EdgeInsets.all(16),
+              child: Text('Ошибка поиска',
+                  style: TextStyle(color: AppColors.textSecondary)),
+            ),
+            data: (events) => events.isEmpty
+                ? Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.search_off_rounded,
+                            color: AppColors.textHint, size: 20),
+                        const SizedBox(width: 12),
+                        Text(
+                          'По запросу «$query» ничего не найдено',
+                          style: const TextStyle(
+                              color: AppColors.textSecondary, fontSize: 14),
+                        ),
+                      ],
+                    ),
+                  )
+                : ListView.separated(
+                    shrinkWrap: true,
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    itemCount: events.length,
+                    separatorBuilder: (_, __) => const Divider(
+                      height: 1,
+                      color: AppColors.glassBorder,
+                      indent: 16,
+                      endIndent: 16,
+                    ),
+                    itemBuilder: (context, i) {
+                      final event = events[i];
+                      return ListTile(
+                        contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 4),
+                        leading: Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: AppColors.primary.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: const Icon(Icons.event_rounded,
+                              color: AppColors.primary, size: 20),
+                        ),
+                        title: Text(
+                          event.title,
+                          style: const TextStyle(
+                            color: AppColors.textPrimary,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 14,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        subtitle: Text(
+                          '${event.cityName} · ${event.timeLabel}',
+                          style: const TextStyle(
+                              color: AppColors.textHint, fontSize: 12),
+                        ),
+                        trailing: const Icon(Icons.chevron_right_rounded,
+                            color: AppColors.textHint, size: 20),
+                        onTap: () {
+                          // Сбрасываем поиск и открываем детали
+                          _searchController.clear();
+                          ref.read(searchQueryProvider.notifier).state = '';
+                          Navigator.of(context).push(MaterialPageRoute(
+                            builder: (_) => EventDetailScreen(event: event),
+                          ));
+                        },
+                      );
+                    },
+                  ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildCategoryFilters() {
-    final categories = [
-      ('Все', '🌍'),
-      ('Вечеринки', '🎉'),
-      ('Спорт', '🛹'),
-      ('Музыка', '🎷'),
-      ('IT', '💻'),
-      ('Еда', '🍽️'),
-      ('Отдых', '🧺'),
+    final categoriesAsync = ref.watch(categoriesProvider);
+    final selectedTypeId = ref.watch(selectedCategoryTypeIdProvider);
+
+    final types = categoriesAsync.maybeWhen(data: (t) => t, orElse: () => []);
+
+    final chips = [
+      (null, 'Все', '🌍'),
+      ...types.map((t) => (t.id, t.nameRu, '📌')),
     ];
 
     return SizedBox(
@@ -308,28 +518,38 @@ class _HomeMapScreenState extends ConsumerState<HomeMapScreen> {
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 16),
-        itemCount: categories.length,
+        itemCount: chips.length,
         separatorBuilder: (_, __) => const SizedBox(width: 8),
         itemBuilder: (context, index) {
-          final (label, emoji) = categories[index];
-          final isActive = index == 0;
-          return Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-            decoration: BoxDecoration(
-              color: isActive ? AppColors.primary : AppColors.surfaceVariant,
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                color: isActive ? AppColors.primary : AppColors.glassBorder,
-              ),
-            ),
-            child: Text(
-              '$emoji $label',
-              style: TextStyle(
+          final (id, label, emoji) = chips[index];
+          final isActive = id == selectedTypeId;
+          return GestureDetector(
+            onTap: () {
+              ref.read(selectedCategoryTypeIdProvider.notifier).state = id;
+            },
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 150),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              decoration: BoxDecoration(
                 color:
-                    isActive ? AppColors.background : AppColors.textSecondary,
-                fontSize: 13,
-                fontWeight:
-                    isActive ? FontWeight.w600 : FontWeight.w400,
+                    isActive ? AppColors.primary : AppColors.surfaceVariant,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color:
+                      isActive ? AppColors.primary : AppColors.glassBorder,
+                ),
+              ),
+              child: Text(
+                '$emoji $label',
+                style: TextStyle(
+                  color: isActive
+                      ? AppColors.background
+                      : AppColors.textSecondary,
+                  fontSize: 13,
+                  fontWeight:
+                      isActive ? FontWeight.w600 : FontWeight.w400,
+                ),
               ),
             ),
           );
@@ -338,12 +558,28 @@ class _HomeMapScreenState extends ConsumerState<HomeMapScreen> {
     );
   }
 
+  Future<void> _goToMyLocation() async {
+    LocationPermission permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied) return;
+    }
+    if (permission == LocationPermission.deniedForever) return;
+
+    final position = await Geolocator.getCurrentPosition(
+      locationSettings: const LocationSettings(
+        accuracy: LocationAccuracy.high,
+      ),
+    );
+    _mapController.move(
+      LatLng(position.latitude, position.longitude),
+      15,
+    );
+  }
+
   Widget _buildLocationButton() {
     return GestureDetector(
-      onTap: () {
-        // TODO: get real user location
-        _mapController.move(LatLng(42.8746, 74.5698), 14);
-      },
+      onTap: _goToMyLocation,
       child: Container(
         width: 48,
         height: 48,
