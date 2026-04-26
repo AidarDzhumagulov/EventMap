@@ -135,10 +135,24 @@ class _CreateEventScreenState extends ConsumerState<CreateEventScreen> {
       ref.invalidate(eventsProvider(widget.initialCity));
 
       if (mounted) Navigator.of(context).pop();
-    } on Exception catch (e) {
+    } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.toString())),
+        await showDialog(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            backgroundColor: AppColors.surface,
+            title: const Text('Ошибка',
+                style: TextStyle(color: AppColors.textPrimary)),
+            content: Text(e.toString(),
+                style: const TextStyle(color: AppColors.textSecondary)),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(),
+                child: const Text('OK',
+                    style: TextStyle(color: AppColors.primary)),
+              ),
+            ],
+          ),
         );
       }
     } finally {

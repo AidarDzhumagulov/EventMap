@@ -58,7 +58,7 @@ func (r *EventMemberRepository) GetStatus(eventID, userID uuid.UUID) (string, er
 func (r *EventMemberRepository) CountMembers(eventID uuid.UUID) (int, error) {
 	var count int
 	err := r.db.Get(&count,
-		"SELECT COUNT(*) FROM event_members WHERE event_id = $1",
+		"SELECT COUNT(*) FROM event_members WHERE event_id = $1 AND status = 'go'",
 		eventID,
 	)
 	return count, err

@@ -3,6 +3,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
+import '../auth_status_provider.dart';
+
 // В продакшене передаётся через --dart-define=API_BASE_URL=https://api.example.com
 // В dev-режиме: Android эмулятор = 10.0.2.2, iOS симулятор = localhost
 const _prodBaseUrl = String.fromEnvironment('API_BASE_URL');
@@ -67,6 +69,8 @@ final dioClientProvider = Provider<Dio>((ref) {
               return handler.resolve(retryResponse);
             } catch (_) {
               await storage.deleteAll();
+              ref.read(authStatusProvider.notifier).state =
+                  AuthStatus.unauthenticated;
             }
           }
         }

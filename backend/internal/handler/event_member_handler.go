@@ -57,15 +57,20 @@ func (h *EventMemberHandler) Join(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if event.MaxMembers != nil {
-		count, err := h.memberRepo.CountMembers(eventID)
-		if err != nil {
-			http.Error(w, "Ошибка проверки мест", http.StatusInternalServerError)
-			return
-		}
-		if count >= *event.MaxMembers {
-			http.Error(w, "Мест нет", http.StatusConflict)
-			return
+	// Проверяем лимит только если пользователь хочет занять место (status="go")
+	// и ещё не имеет статус "go" (иначе смена "go"→"think" блокировалась бы при полном событии)
+	if event.MaxMembers != nil && status == "go" {
+		currentStatus, _ := h.memberRepo.GetStatus(eventID, userID)
+		if currentStatus != "go" {
+			count, err := h.memberRepo.CountMembers(eventID)
+			if err != nil {
+				http.Error(w, "Ошибка проверки мест", http.StatusInternalServerError)
+				return
+			}
+			if count >= *event.MaxMembers {
+				http.Error(w, "Мест нет", http.StatusConflict)
+				return
+			}
 		}
 	}
 

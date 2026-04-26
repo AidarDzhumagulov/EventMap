@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/auth_status_provider.dart';
 import '../repository/auth_repository.dart';
 
 // Состояние авторизации
@@ -29,6 +30,7 @@ class AuthNotifier extends Notifier<AuthState> {
     state = AuthLoading();
     try {
       await _repo.login(email: email, password: password);
+      ref.read(authStatusProvider.notifier).state = AuthStatus.authenticated;
       state = AuthSuccess();
       return true;
     } on AuthException catch (e) {
@@ -48,6 +50,7 @@ class AuthNotifier extends Notifier<AuthState> {
           username: username, email: email, password: password);
       // После регистрации — сразу логиним
       await _repo.login(email: email, password: password);
+      ref.read(authStatusProvider.notifier).state = AuthStatus.authenticated;
       state = AuthSuccess();
       return true;
     } on AuthException catch (e) {
@@ -58,6 +61,7 @@ class AuthNotifier extends Notifier<AuthState> {
 
   Future<void> logout() async {
     await _repo.logout();
+    ref.read(authStatusProvider.notifier).state = AuthStatus.unauthenticated;
     state = AuthInitial();
   }
 

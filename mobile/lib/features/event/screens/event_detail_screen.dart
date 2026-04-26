@@ -260,16 +260,17 @@ class _EventDetailScreenState extends ConsumerState<EventDetailScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-            spacing: 8,
-            children: [
-              if (event.status == EventStatus.ongoing)
-                _badge('Идёт сейчас', AppColors.success),
-              if (event.isPrivate)
-                _badge('🔒 Закрытое', AppColors.secondary),
-              if (event.isFull)
-                _badge('Мест нет', AppColors.error),
-            ],
-          ),
+                Wrap(
+                  spacing: 8,
+                  children: [
+                    if (event.status == EventStatus.ongoing)
+                      _badge('Идёт сейчас', AppColors.success),
+                    if (event.isPrivate)
+                      _badge('🔒 Закрытое', AppColors.secondary),
+                    if (event.isFull)
+                      _badge('Мест нет', AppColors.error),
+                  ],
+                ),
           const SizedBox(height: 16),
 
           // Название

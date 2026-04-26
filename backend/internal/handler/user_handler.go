@@ -78,7 +78,7 @@ func (h *Handler) RegisterUser(w http.ResponseWriter, r *http.Request) {
 
 	newUser.Email = registerUser.Email
 
-	newUser.Role = registerUser.Role
+	newUser.Role = "user"
 
 	err = h.userRepo.Create(newUser)
 

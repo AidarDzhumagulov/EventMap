@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/auth_status_provider.dart';
 import '../../../core/theme.dart';
 import '../../../routes/app_router.dart';
 import '../providers/auth_provider.dart';
@@ -45,6 +46,8 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
 
     final isAuth = await ref.read(isAuthenticatedProvider.future);
     if (!mounted) return;
+    ref.read(authStatusProvider.notifier).state =
+        isAuth ? AuthStatus.authenticated : AuthStatus.unauthenticated;
     context.go(isAuth ? AppRoutes.homeMap : AppRoutes.login);
   }
 

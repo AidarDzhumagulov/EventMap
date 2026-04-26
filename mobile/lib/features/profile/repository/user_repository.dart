@@ -4,8 +4,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/network/dio_client.dart';
 import '../../../models/user_model.dart';
 
-export '../../../models/user_model.dart';
-
 class UserRepository {
   final Dio _dio;
 
