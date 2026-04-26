@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"crypto/sha256"
 	"encoding/json"
 	"event-map/internal/auth"
 	"event-map/internal/middleware"
@@ -59,9 +60,8 @@ func (h *Handler) RegisterUser(w http.ResponseWriter, r *http.Request) {
 
 	salt := os.Getenv("SALT")
 
-	password := []byte(registerUser.Password + salt)
-
-	hash, err := bcrypt.GenerateFromPassword(password, bcrypt.DefaultCost)
+	digest := sha256.Sum256([]byte(registerUser.Password + salt))
+	hash, err := bcrypt.GenerateFromPassword(digest[:], bcrypt.DefaultCost)
 
 	if err != nil {
 		http.Error(w, "Ошибка при хэшировании пароля", http.StatusBadRequest)
@@ -119,9 +119,8 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 
 	salt := os.Getenv("SALT")
 
-	password := []byte(LoginUser.Password + salt)
-
-	err = bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), password)
+	digest := sha256.Sum256([]byte(LoginUser.Password + salt))
+	err = bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), digest[:])
 
 	if err != nil {
 		http.Error(w, "Не верный пароль", http.StatusUnauthorized)
