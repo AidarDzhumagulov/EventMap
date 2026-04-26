@@ -68,7 +68,7 @@ func (r *EventRepository) Create(req models.CreateEventRequest, userID uuid.UUID
 	return computeStatus(event), nil
 }
 
-func (r *EventRepository) GetAll(cityName string, status string, search string) ([]models.Event, error) {
+func (r *EventRepository) GetAll(cityName string, status string, search string, limit int, offset int) ([]models.Event, error) {
 	var events []models.Event
 
 	query := eventSelect + `
@@ -76,9 +76,10 @@ func (r *EventRepository) GetAll(cityName string, status string, search string) 
 		  AND ($1 = '' OR e.city_name = $1)
 		  AND ($2 = '' OR e.status = $2)
 		  AND ($3 = '' OR e.title ILIKE '%' || $3 || '%')
-		ORDER BY e.start_time ASC`
+		ORDER BY e.start_time ASC
+		LIMIT $4 OFFSET $5`
 
-	err := r.db.Select(&events, query, cityName, status, search)
+	err := r.db.Select(&events, query, cityName, status, search, limit, offset)
 	if err != nil {
 		return nil, err
 	}

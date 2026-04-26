@@ -7,6 +7,7 @@ import (
 	"event-map/internal/models"
 	"event-map/internal/repository"
 	"net/http"
+	"strconv"
 
 	"github.com/google/uuid"
 )
@@ -38,7 +39,7 @@ func (h *EventHandler) CreateEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.Title == "" || req.CityName == "" || req.Lat == 0 || req.Lon == 0 {
+	if req.Title == "" || req.CityName == "" || req.Lat == 0 || req.Lon == 0 || req.StartTime.IsZero() {
 		http.Error(w, "Обязательные поля: title, city_name, lat, lon, start_time", http.StatusBadRequest)
 		return
 	}
@@ -64,7 +65,19 @@ func (h *EventHandler) GetEvents(w http.ResponseWriter, r *http.Request) {
 	status := r.URL.Query().Get("status")
 	search := r.URL.Query().Get("search")
 
-	events, err := h.eventRepo.GetAll(city, status, search)
+	limit := 100
+	offset := 0
+	if v, err := strconv.Atoi(r.URL.Query().Get("limit")); err == nil && v > 0 {
+		if v > 200 {
+			v = 200
+		}
+		limit = v
+	}
+	if v, err := strconv.Atoi(r.URL.Query().Get("offset")); err == nil && v >= 0 {
+		offset = v
+	}
+
+	events, err := h.eventRepo.GetAll(city, status, search, limit, offset)
 	if err != nil {
 		http.Error(w, "Ошибка получения событий", http.StatusInternalServerError)
 		return

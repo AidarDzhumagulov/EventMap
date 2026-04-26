@@ -5,15 +5,16 @@ import '../../../models/event_model.dart';
 import '../repository/category_repository.dart';
 import '../repository/event_repository.dart';
 
+enum DateFilter { all, today, thisWeek }
+
 final selectedCityProvider = StateProvider<String>((ref) => 'Бишкек');
 
 final mapCenterProvider = StateProvider<LatLng>(
   (ref) => const LatLng(42.8746, 74.5698),
 );
 
-// null = все категории
 final selectedCategoryTypeIdProvider = StateProvider<int?>((ref) => null);
-
+final selectedDateFilterProvider = StateProvider<DateFilter>((ref) => DateFilter.all);
 final searchQueryProvider = StateProvider<String>((ref) => '');
 
 final eventsProvider =
@@ -22,30 +23,52 @@ final eventsProvider =
   return ref.read(eventRepositoryProvider).getEvents(city: city, search: search);
 });
 
-// События отфильтрованные по типу категории
 final filteredEventsProvider =
     Provider.family<AsyncValue<List<EventModel>>, String>((ref, city) {
   final eventsAsync = ref.watch(eventsProvider(city));
   final selectedTypeId = ref.watch(selectedCategoryTypeIdProvider);
+  final dateFilter = ref.watch(selectedDateFilterProvider);
   final categoriesAsync = ref.watch(categoriesProvider);
 
-  if (selectedTypeId == null) return eventsAsync;
-
   return eventsAsync.whenData((events) {
-    // Строим маппинг category_id → category_type_id
-    final categoryTypeMap = <int, int>{};
-    categoriesAsync.whenData((types) {
-      for (final type in types) {
-        for (final cat in type.categories) {
-          categoryTypeMap[cat.id] = type.id;
-        }
-      }
-    });
+    var filtered = events;
 
-    return events.where((e) {
-      if (e.categoryId == null) return false;
-      return categoryTypeMap[e.categoryId] == selectedTypeId;
-    }).toList();
+    if (selectedTypeId != null) {
+      final categoryTypeMap = <int, int>{};
+      categoriesAsync.whenData((types) {
+        for (final type in types) {
+          for (final cat in type.categories) {
+            categoryTypeMap[cat.id] = type.id;
+          }
+        }
+      });
+      filtered = filtered.where((e) {
+        if (e.categoryId == null) return false;
+        return categoryTypeMap[e.categoryId] == selectedTypeId;
+      }).toList();
+    }
+
+    final now = DateTime.now();
+    switch (dateFilter) {
+      case DateFilter.today:
+        final startOfDay = DateTime(now.year, now.month, now.day);
+        final endOfDay = startOfDay.add(const Duration(days: 1));
+        filtered = filtered
+            .where((e) =>
+                e.startTime.isAfter(startOfDay) &&
+                e.startTime.isBefore(endOfDay))
+            .toList();
+      case DateFilter.thisWeek:
+        final endOfWeek = now.add(const Duration(days: 7));
+        filtered = filtered
+            .where((e) =>
+                e.startTime.isAfter(now) && e.startTime.isBefore(endOfWeek))
+            .toList();
+      case DateFilter.all:
+        break;
+    }
+
+    return filtered;
   });
 });
 

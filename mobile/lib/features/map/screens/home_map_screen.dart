@@ -306,6 +306,7 @@ class _HomeMapScreenState extends ConsumerState<HomeMapScreen> {
   Widget _buildCitySelector() {
     return Consumer(
       builder: (context, ref, _) {
+        final city = ref.watch(selectedCityProvider);
         return GestureDetector(
           onTap: () => _showCityPicker(context, ref),
           child: Container(
@@ -316,12 +317,21 @@ class _HomeMapScreenState extends ConsumerState<HomeMapScreen> {
               borderRadius: BorderRadius.circular(14),
               border: Border.all(color: AppColors.glassBorder),
             ),
-            child: const Row(
+            child: Row(
               children: [
-                Icon(Icons.location_city_rounded,
+                const Icon(Icons.location_city_rounded,
                     color: AppColors.primary, size: 18),
-                SizedBox(width: 6),
-                Icon(Icons.keyboard_arrow_down_rounded,
+                const SizedBox(width: 6),
+                Text(
+                  city,
+                  style: const TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(width: 4),
+                const Icon(Icons.keyboard_arrow_down_rounded,
                     color: AppColors.textHint, size: 18),
               ],
             ),
@@ -332,24 +342,72 @@ class _HomeMapScreenState extends ConsumerState<HomeMapScreen> {
   }
 
   void _showCityPicker(BuildContext context, WidgetRef ref) {
+    final controller = TextEditingController();
     showModalBottomSheet(
       context: context,
       backgroundColor: AppColors.surface,
+      isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      builder: (_) => Padding(
-        padding: const EdgeInsets.all(24),
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.only(
+          left: 24,
+          right: 24,
+          top: 24,
+          bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text('Выбери город',
                 style: Theme.of(context).textTheme.titleLarge),
-            const SizedBox(height: 20),
-            _cityOption(context, ref, 'Бишкек', LatLng(42.8746, 74.5698)),
+            const SizedBox(height: 16),
+            TextField(
+              controller: controller,
+              style: const TextStyle(color: AppColors.textPrimary),
+              decoration: InputDecoration(
+                hintText: 'Введи название города...',
+                hintStyle: const TextStyle(color: AppColors.textHint),
+                filled: true,
+                fillColor: AppColors.surfaceVariant,
+                prefixIcon: const Icon(Icons.search_rounded,
+                    color: AppColors.textHint, size: 20),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: AppColors.glassBorder),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: AppColors.glassBorder),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: AppColors.primary),
+                ),
+              ),
+              textInputAction: TextInputAction.done,
+              onSubmitted: (value) {
+                if (value.trim().isEmpty) return;
+                ref.read(selectedCityProvider.notifier).state = value.trim();
+                ref.read(selectedEventProvider.notifier).state = null;
+                Navigator.pop(ctx);
+              },
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Популярные города',
+              style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+            ),
             const SizedBox(height: 12),
+            _cityOption(context, ref, 'Бишкек', LatLng(42.8746, 74.5698)),
+            const SizedBox(height: 8),
             _cityOption(context, ref, 'Алматы', LatLng(43.2220, 76.8512)),
+            const SizedBox(height: 8),
+            _cityOption(context, ref, 'Астана', LatLng(51.1694, 71.4491)),
+            const SizedBox(height: 8),
+            _cityOption(context, ref, 'Ташкент', LatLng(41.2995, 69.2401)),
           ],
         ),
       ),
@@ -626,7 +684,13 @@ class _HomeMapScreenState extends ConsumerState<HomeMapScreen> {
   Widget _navItem(int index, IconData icon, String label) {
     final isSelected = _selectedNavIndex == index;
     return GestureDetector(
-      onTap: () => setState(() => _selectedNavIndex = index),
+      onTap: () {
+        if (isSelected && index == 0) {
+          final city = ref.read(selectedCityProvider);
+          ref.invalidate(eventsProvider(city));
+        }
+        setState(() => _selectedNavIndex = index);
+      },
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),

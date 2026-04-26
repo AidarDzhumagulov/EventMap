@@ -7,6 +7,12 @@ import '../../../models/event_model.dart';
 import '../../event/screens/event_detail_screen.dart';
 import '../../map/providers/events_provider.dart';
 
+const _dateFilterLabels = {
+  DateFilter.all: 'Все',
+  DateFilter.today: 'Сегодня',
+  DateFilter.thisWeek: 'Эта неделя',
+};
+
 class FeedScreen extends ConsumerWidget {
   const FeedScreen({super.key});
 
@@ -22,7 +28,7 @@ class FeedScreen extends ConsumerWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
               child: Text(
                 'Лента',
                 style: Theme.of(context).textTheme.headlineSmall?.copyWith(
@@ -30,6 +36,54 @@ class FeedScreen extends ConsumerWidget {
                     ),
               ),
             ),
+            SizedBox(
+              height: 36,
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                children: DateFilter.values.map((filter) {
+                  final isActive =
+                      ref.watch(selectedDateFilterProvider) == filter;
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: GestureDetector(
+                      onTap: () => ref
+                          .read(selectedDateFilterProvider.notifier)
+                          .state = filter,
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 150),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 7),
+                        decoration: BoxDecoration(
+                          color: isActive
+                              ? AppColors.primary
+                              : AppColors.surfaceVariant,
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: isActive
+                                ? AppColors.primary
+                                : AppColors.glassBorder,
+                          ),
+                        ),
+                        child: Text(
+                          _dateFilterLabels[filter]!,
+                          style: TextStyle(
+                            color: isActive
+                                ? AppColors.background
+                                : AppColors.textSecondary,
+                            fontSize: 13,
+                            fontWeight: isActive
+                                ? FontWeight.w600
+                                : FontWeight.w400,
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+            const SizedBox(height: 8),
             Expanded(
               child: eventsAsync.when(
                 loading: () => const Center(
