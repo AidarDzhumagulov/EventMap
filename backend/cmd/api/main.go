@@ -60,6 +60,10 @@ func main() {
 	categoryHandler := handler.NewCategoryHandler(categoryRepo)
 	http.HandleFunc("/categories", categoryHandler.GetCategories)
 
+	locationRepo := repository.NewLocationRepository(db)
+	locationHandler := handler.NewLocationHandler(locationRepo)
+	http.HandleFunc("/locations/create", middleware.AuthMiddleware(locationHandler.CreateLocation))
+
 	eventRepo := repository.NewEventRepository(db)
 	eventHandler := handler.NewEventHandler(eventRepo)
 	http.HandleFunc("/events", middleware.AuthMiddleware(eventHandler.GetEvents))

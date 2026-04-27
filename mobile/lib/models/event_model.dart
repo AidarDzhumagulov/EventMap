@@ -15,6 +15,7 @@ class EventModel {
   final String createdBy;
   final String? creatorAvatarUrl;
   final String? coverUrl;
+  final String? locationAddress;
   final EventPrivacy privacy;
   final EventStatus status;
   final int membersCount;
@@ -34,6 +35,7 @@ class EventModel {
     required this.createdBy,
     this.creatorAvatarUrl,
     this.coverUrl,
+    this.locationAddress,
     required this.privacy,
     required this.status,
     required this.membersCount,
@@ -58,6 +60,7 @@ class EventModel {
           ? DateTime.parse(json['end_time'] as String)
           : null,
       coverUrl: json['cover_url'] as String?,
+      locationAddress: json['location_address'] as String?,
       privacy: (json['is_private'] as bool)
           ? EventPrivacy.private
           : EventPrivacy.public,
@@ -94,6 +97,7 @@ class EventModel {
       createdBy: createdBy,
       creatorAvatarUrl: creatorAvatarUrl,
       coverUrl: coverUrl,
+      locationAddress: locationAddress,
       privacy: privacy,
       status: status,
       membersCount: membersCount ?? this.membersCount,

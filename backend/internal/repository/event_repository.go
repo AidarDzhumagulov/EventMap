@@ -12,11 +12,13 @@ import (
 
 var ErrNotFound = errors.New("not found")
 
-// базовый SELECT с реальным счётчиком участников
+// базовый SELECT с реальным счётчиком участников и адресом локации
 const eventSelect = `
 	SELECT e.*,
+		l.address AS location_address,
 		(SELECT COUNT(*) FROM event_members WHERE event_id = e.id AND status = 'go')::int AS members_count
-	FROM events e`
+	FROM events e
+	LEFT JOIN locations l ON l.id = e.location_id`
 
 // computeStatus вычисляет актуальный статус события по времени
 func computeStatus(e models.Event) models.Event {
@@ -52,15 +54,15 @@ func (r *EventRepository) Create(req models.CreateEventRequest, userID uuid.UUID
 	query := `
 		INSERT INTO events (
 			title, description, cover_url, lat, lon, city_name,
-			start_time, end_time, is_private, max_members, category_id, created_by
+			start_time, end_time, is_private, max_members, category_id, location_id, created_by
 		) VALUES (
 			$1, $2, $3, $4, $5, $6,
-			$7, $8, $9, $10, $11, $12
+			$7, $8, $9, $10, $11, $12, $13
 		) RETURNING *`
 
 	err := r.db.Get(&event, query,
 		req.Title, req.Description, req.CoverURL, req.Lat, req.Lon, req.CityName,
-		req.StartTime, req.EndTime, req.IsPrivate, req.MaxMembers, req.CategoryID, userID,
+		req.StartTime, req.EndTime, req.IsPrivate, req.MaxMembers, req.CategoryID, req.LocationID, userID,
 	)
 	if err != nil {
 		return models.Event{}, err

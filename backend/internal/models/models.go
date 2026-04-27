@@ -49,8 +49,9 @@ type Event struct {
 	CreatedAt      time.Time  `json:"created_at" db:"created_at"`
 	UpdatedAt      *time.Time `json:"updated_at" db:"updated_at"`
 	UpdatedBy      *uuid.UUID `json:"updated_by" db:"updated_by"`
-	DeletedAt      *time.Time `json:"-" db:"deleted_at"`
-	DeletedBy      *uuid.UUID `json:"-" db:"deleted_by"`
+	DeletedAt       *time.Time `json:"-" db:"deleted_at"`
+	DeletedBy       *uuid.UUID `json:"-" db:"deleted_by"`
+	LocationAddress *string    `json:"location_address" db:"location_address"`
 }
 
 type CreateEventRequest struct {
@@ -65,6 +66,7 @@ type CreateEventRequest struct {
 	IsPrivate      bool       `json:"is_private"`
 	MaxMembers     *int       `json:"max_members"`
 	CategoryID     *int       `json:"category_id"`
+	LocationID     *uuid.UUID `json:"location_id"`
 }
 
 type UpdateEventRequest struct {
@@ -113,4 +115,23 @@ type CategoryTypeWithCategories struct {
 	Alias      string     `json:"alias" db:"alias"`
 	NameRu     string     `json:"name_ru" db:"name_ru"`
 	Categories []Category `json:"categories"`
+}
+
+type Location struct {
+	ID         uuid.UUID `json:"id" db:"id"`
+	Lat        float64   `json:"lat" db:"lat"`
+	Lon        float64   `json:"lon" db:"lon"`
+	Address    *string   `json:"address" db:"address"`
+	Name       *string   `json:"name" db:"name"`
+	Provider   string    `json:"provider" db:"provider"`
+	ExternalID *string   `json:"external_id" db:"external_id"`
+}
+
+type CreateLocationRequest struct {
+	Lat        float64 `json:"lat"`
+	Lon        float64 `json:"lon"`
+	Address    *string `json:"address"`
+	Name       *string `json:"name"`
+	Provider   string  `json:"provider"`
+	ExternalID *string `json:"external_id"`
 }

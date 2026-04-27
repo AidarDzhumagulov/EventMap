@@ -9,8 +9,10 @@ import 'package:latlong2/latlong.dart';
 
 import '../../../core/theme.dart';
 import '../../../models/category_model.dart';
+import '../../../models/location_model.dart';
 import '../providers/events_provider.dart';
 import '../repository/event_repository.dart';
+import '../repository/location_repository.dart';
 import '../widgets/category_picker.dart';
 import 'location_picker_screen.dart';
 
@@ -39,14 +41,17 @@ class _CreateEventScreenState extends ConsumerState<CreateEventScreen> {
   DateTime? _startTime;
   bool _isPrivate = false;
   bool _isLoading = false;
-  late LatLng _pickedLocation;
+  late PickedLocation _pickedLocation;
   CategoryModel? _selectedCategory;
   File? _coverImage;
 
   @override
   void initState() {
     super.initState();
-    _pickedLocation = LatLng(widget.initialLat, widget.initialLon);
+    _pickedLocation = PickedLocation(
+      lat: widget.initialLat,
+      lon: widget.initialLon,
+    );
   }
 
   @override
@@ -113,22 +118,31 @@ class _CreateEventScreenState extends ConsumerState<CreateEventScreen> {
           : null;
 
       final repo = ref.read(eventRepositoryProvider);
+      final locationRepo = ref.read(locationRepositoryProvider);
+
       String? coverUrl;
       if (_coverImage != null) {
         coverUrl = await repo.uploadCover(_coverImage!.path);
       }
 
+      final location = await locationRepo.createLocation(
+        lat: _pickedLocation.lat,
+        lon: _pickedLocation.lon,
+        address: _pickedLocation.address,
+      );
+
       await repo.createEvent(
             title: _titleController.text.trim(),
             description: _descController.text.trim(),
             coverUrl: coverUrl,
-            lat: _pickedLocation.latitude,
-            lon: _pickedLocation.longitude,
+            lat: _pickedLocation.lat,
+            lon: _pickedLocation.lon,
             cityName: widget.initialCity,
             startTime: _startTime!,
             isPrivate: _isPrivate,
             maxMembers: maxMembers,
             categoryId: _selectedCategory?.id,
+            locationId: location.id,
           );
 
       // Обновляем список событий на карте
@@ -346,10 +360,11 @@ class _CreateEventScreenState extends ConsumerState<CreateEventScreen> {
               label: 'Место проведения *',
               child: GestureDetector(
                 onTap: () async {
-                  final result = await Navigator.of(context).push<LatLng>(
+                  final result = await Navigator.of(context).push<PickedLocation>(
                     MaterialPageRoute(
                       builder: (_) => LocationPickerScreen(
-                        initialCenter: _pickedLocation,
+                        initialCenter: LatLng(
+                            _pickedLocation.lat, _pickedLocation.lon),
                       ),
                     ),
                   );
@@ -371,7 +386,9 @@ class _CreateEventScreenState extends ConsumerState<CreateEventScreen> {
                       const SizedBox(width: 10),
                       Expanded(
                         child: Text(
-                          '${widget.initialCity} · ${_pickedLocation.latitude.toStringAsFixed(4)}, ${_pickedLocation.longitude.toStringAsFixed(4)}',
+                          _pickedLocation.address != null
+                              ? '${widget.initialCity} · ${_pickedLocation.address}'
+                              : '${widget.initialCity} · ${_pickedLocation.lat.toStringAsFixed(4)}, ${_pickedLocation.lon.toStringAsFixed(4)}',
                           style: const TextStyle(
                               color: AppColors.textPrimary, fontSize: 14),
                         ),

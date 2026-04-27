@@ -53,6 +53,7 @@ class EventRepository {
     bool isPrivate = false,
     int? maxMembers,
     int? categoryId,
+    String? locationId,
   }) async {
     final response = await _dio.post('/events/create', data: {
       'title': title,
@@ -67,6 +68,7 @@ class EventRepository {
       'is_private': isPrivate,
       if (maxMembers != null) 'max_members': maxMembers,
       if (categoryId != null) 'category_id': categoryId,
+      if (locationId != null) 'location_id': locationId,
     });
     return EventModel.fromJson(response.data as Map<String, dynamic>);
   }
