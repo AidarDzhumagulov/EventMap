@@ -16,13 +16,80 @@ class EventMarker extends StatelessWidget {
   });
 
   Color get _markerColor {
-    if (event.isPrivate) return AppColors.secondary;
+    if (event.isPrivate) return const Color(0xFF6B21A8); // фиолетовый для секретных
     if (event.status == EventStatus.ongoing) return AppColors.success;
     return AppColors.primary;
   }
 
   @override
   Widget build(BuildContext context) {
+    if (event.isPrivate) return _buildMysteryMarker();
+    return _buildNormalMarker();
+  }
+
+  Widget _buildMysteryMarker() {
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            padding: EdgeInsets.symmetric(
+              horizontal: isSelected ? 14 : 10,
+              vertical: isSelected ? 8 : 6,
+            ),
+            decoration: BoxDecoration(
+              color: isSelected
+                  ? const Color(0xFF6B21A8)
+                  : const Color(0xFF1A0A2E),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: const Color(0xFF6B21A8),
+                width: isSelected ? 0 : 1.5,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF6B21A8)
+                      .withValues(alpha: isSelected ? 0.7 : 0.4),
+                  blurRadius: isSelected ? 24 : 12,
+                  spreadRadius: isSelected ? 4 : 2,
+                ),
+              ],
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('🔒', style: TextStyle(fontSize: 13)),
+                if (isSelected) ...[
+                  const SizedBox(width: 6),
+                  const Text(
+                    'Закрытое событие',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          CustomPaint(
+            size: const Size(10, 6),
+            painter: _MarkerTailPainter(
+              color: isSelected
+                  ? const Color(0xFF6B21A8)
+                  : const Color(0xFF1A0A2E),
+              borderColor: const Color(0xFF6B21A8),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNormalMarker() {
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
@@ -31,7 +98,6 @@ class EventMarker extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Bubble
             AnimatedContainer(
               duration: const Duration(milliseconds: 200),
               padding: EdgeInsets.symmetric(
@@ -47,7 +113,7 @@ class EventMarker extends StatelessWidget {
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: _markerColor.withOpacity(isSelected ? 0.5 : 0.2),
+                    color: _markerColor.withValues(alpha: isSelected ? 0.5 : 0.2),
                     blurRadius: isSelected ? 20 : 8,
                     spreadRadius: isSelected ? 2 : 0,
                   ),
@@ -64,7 +130,7 @@ class EventMarker extends StatelessWidget {
                     const SizedBox(width: 6),
                     Text(
                       event.title,
-                      style: TextStyle(
+                      style: const TextStyle(
                         color: AppColors.background,
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
@@ -76,12 +142,11 @@ class EventMarker extends StatelessWidget {
                 ],
               ),
             ),
-            // Хвостик
             CustomPaint(
               size: const Size(10, 6),
               painter: _MarkerTailPainter(
                 color: isSelected ? _markerColor : AppColors.surface,
-                borderColor: isSelected ? _markerColor : _markerColor,
+                borderColor: _markerColor,
               ),
             ),
           ],

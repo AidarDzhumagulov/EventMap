@@ -16,7 +16,9 @@ import (
 )
 
 func main() {
-	godotenv.Load()
+	if err := godotenv.Load(); err != nil {
+		log.Println("godotenv: .env не найден, используем переменные окружения")
+	}
 
 	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
 		Level: slog.LevelDebug,
@@ -82,6 +84,7 @@ func main() {
 	memberRepo := repository.NewEventMemberRepository(db)
 	memberHandler := handler.NewEventMemberHandler(memberRepo, eventRepo)
 	http.HandleFunc("/events/join", auth(memberHandler.Join))
+	http.HandleFunc("/events/join-by-code", auth(memberHandler.JoinByCode))
 	http.HandleFunc("/events/leave", auth(memberHandler.Leave))
 	http.HandleFunc("/events/my-status", auth(memberHandler.GetMyStatus))
 	http.HandleFunc("/events/members", auth(memberHandler.GetMembers))

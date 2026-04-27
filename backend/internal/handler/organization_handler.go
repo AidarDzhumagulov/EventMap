@@ -34,18 +34,22 @@ func (h *OrganizationHandler) Create(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid request", http.StatusBadRequest)
 		return
 	}
+	// Create + добавление owner выполняются в одной транзакции внутри репо
 	org, err := h.repo.Create(req, userID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	_ = h.repo.AddMember(org.ID, models.AddMemberRequest{UserID: userID, Role: "owner"})
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(org)
 }
 
 func (h *OrganizationHandler) GetByID(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
 	idStr := r.URL.Query().Get("id")
 	id, err := uuid.Parse(idStr)
 	if err != nil {
@@ -66,6 +70,10 @@ func (h *OrganizationHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *OrganizationHandler) GetMy(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
 	userID, ok := middleware.GetUserID(r)
 	if !ok {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
@@ -145,10 +153,20 @@ func (h *OrganizationHandler) AddMember(w http.ResponseWriter, r *http.Request) 
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
+	callerID, ok := middleware.GetUserID(r)
+	if !ok {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
 	idStr := r.URL.Query().Get("id")
 	orgID, err := uuid.Parse(idStr)
 	if err != nil {
 		http.Error(w, "invalid id", http.StatusBadRequest)
+		return
+	}
+	// Только owner/admin могут добавлять участников
+	if !h.repo.IsOrgAdmin(orgID, callerID) {
+		http.Error(w, "Forbidden", http.StatusForbidden)
 		return
 	}
 	var req models.AddMemberRequest
@@ -171,10 +189,20 @@ func (h *OrganizationHandler) RemoveMember(w http.ResponseWriter, r *http.Reques
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
+	callerID, ok := middleware.GetUserID(r)
+	if !ok {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
 	idStr := r.URL.Query().Get("id")
 	orgID, err := uuid.Parse(idStr)
 	if err != nil {
 		http.Error(w, "invalid id", http.StatusBadRequest)
+		return
+	}
+	// Только owner/admin могут удалять участников
+	if !h.repo.IsOrgAdmin(orgID, callerID) {
+		http.Error(w, "Forbidden", http.StatusForbidden)
 		return
 	}
 	userIDStr := r.URL.Query().Get("user_id")
@@ -194,6 +222,10 @@ func (h *OrganizationHandler) RemoveMember(w http.ResponseWriter, r *http.Reques
 }
 
 func (h *OrganizationHandler) GetMembers(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
 	idStr := r.URL.Query().Get("id")
 	orgID, err := uuid.Parse(idStr)
 	if err != nil {

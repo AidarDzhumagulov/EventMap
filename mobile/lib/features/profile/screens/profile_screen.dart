@@ -142,12 +142,43 @@ class ProfileScreen extends ConsumerWidget {
                 ),
               ),
               const SizedBox(height: 32),
+              // Ранг
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceVariant,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: AppColors.glassBorder),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(user.rankEmoji,
+                        style: const TextStyle(fontSize: 20)),
+                    const SizedBox(width: 8),
+                    Text(
+                      user.rankLabel,
+                      style: const TextStyle(
+                        color: AppColors.textPrimary,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 16,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Text(
+                      '${user.rating.toInt()} очков',
+                      style: const TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
               // Статистика
               Row(
                 children: [
-                  _statCard(context, label: 'Рейтинг',
-                      value: user.rating.toStringAsFixed(1)),
-                  const SizedBox(width: 12),
                   _statCard(context, label: 'Роль',
                       value: _roleLabel(user.role)),
                 ],

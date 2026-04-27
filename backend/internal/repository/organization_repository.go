@@ -18,16 +18,39 @@ func NewOrganizationRepository(db *sqlx.DB) *OrganizationRepository {
 }
 
 func (r *OrganizationRepository) Create(req models.CreateOrganizationRequest, userID uuid.UUID) (models.Organization, error) {
-	var org models.Organization
-	query := `
-		INSERT INTO organizations (name, description, created_by)
-		VALUES ($1, $2, $3)
-		RETURNING id, name, description, is_verified, billing_info, created_at, created_by`
-	err := r.db.Get(&org, query, req.Name, req.Description, userID)
+	tx, err := r.db.Beginx()
 	if err != nil {
 		return models.Organization{}, err
 	}
-	return org, nil
+	defer tx.Rollback()
+
+	var org models.Organization
+	err = tx.Get(&org, `
+		INSERT INTO organizations (name, description, created_by)
+		VALUES ($1, $2, $3)
+		RETURNING id, name, description, is_verified, billing_info, created_at, created_by`,
+		req.Name, req.Description, userID)
+	if err != nil {
+		return models.Organization{}, err
+	}
+
+	_, err = tx.Exec(
+		`INSERT INTO business_members (user_id, organization_id, role) VALUES ($1, $2, 'owner')`,
+		userID, org.ID)
+	if err != nil {
+		return models.Organization{}, err
+	}
+
+	return org, tx.Commit()
+}
+
+func (r *OrganizationRepository) IsOrgAdmin(orgID, userID uuid.UUID) bool {
+	var exists bool
+	r.db.Get(&exists,
+		`SELECT EXISTS(SELECT 1 FROM business_members
+		 WHERE organization_id = $1 AND user_id = $2 AND role IN ('owner', 'admin'))`,
+		orgID, userID)
+	return exists
 }
 
 func (r *OrganizationRepository) GetByID(id uuid.UUID) (models.Organization, error) {

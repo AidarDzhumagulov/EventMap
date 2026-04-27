@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:dio/dio.dart';
 import 'package:intl/intl.dart';
@@ -258,6 +259,18 @@ class _EventDetailScreenState extends ConsumerState<EventDetailScreen> {
             const SizedBox(height: 24),
           ],
 
+          // Код приглашения — виден только создателю приватного события
+          if (event.isPrivate && isCreator && event.inviteCode != null) ...[
+            const SizedBox(height: 20),
+            _InviteCodeCard(code: event.inviteCode!),
+          ],
+
+          // Кнопка «Войти по коду» — для не-участников закрытого события
+          if (event.isPrivate && !isCreator) ...[
+            const SizedBox(height: 20),
+            _JoinByCodeButton(eventId: event.id, cityName: event.cityName),
+          ],
+
           RsvpButtons(
             eventId: event.id,
             cityName: event.cityName,
@@ -503,6 +516,234 @@ class _MembersSheetState extends State<_MembersSheet> {
           ),
         ],
       ),
+    );
+  }
+}
+
+// ─── Карточка с кодом приглашения (только для создателя) ──────────────────
+
+class _InviteCodeCard extends StatelessWidget {
+  final String code;
+  const _InviteCodeCard({required this.code});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1A0A2E),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFF6B21A8)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Text('🔒', style: TextStyle(fontSize: 16)),
+              SizedBox(width: 8),
+              Text(
+                'Код приглашения',
+                style: TextStyle(
+                  color: Colors.white70,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  code,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 28,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 6,
+                  ),
+                ),
+              ),
+              IconButton(
+                onPressed: () {
+                  // ignore: deprecated_member_use
+                  Clipboard.setData(ClipboardData(text: code));
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                    content: Text('Код скопирован'),
+                    behavior: SnackBarBehavior.floating,
+                    duration: Duration(seconds: 2),
+                  ));
+                },
+                icon: const Icon(Icons.copy_rounded,
+                    color: Color(0xFF6B21A8), size: 22),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            'Поделитесь кодом, чтобы друзья могли присоединиться',
+            style: TextStyle(color: Colors.white38, fontSize: 12),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Кнопка «Войти по коду» (для не-участников) ───────────────────────────
+
+class _JoinByCodeButton extends ConsumerStatefulWidget {
+  final String eventId;
+  final String cityName;
+  const _JoinByCodeButton({required this.eventId, required this.cityName});
+
+  @override
+  ConsumerState<_JoinByCodeButton> createState() => _JoinByCodeButtonState();
+}
+
+class _JoinByCodeButtonState extends ConsumerState<_JoinByCodeButton> {
+  final _codeController = TextEditingController();
+  bool _loading = false;
+
+  @override
+  void dispose() {
+    _codeController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    final code = _codeController.text.trim().toUpperCase();
+    if (code.isEmpty) return;
+    setState(() => _loading = true);
+    try {
+      final dio = ref.read(dioClientProvider);
+      await dio.post('/events/join-by-code', queryParameters: {'code': code});
+      ref.invalidate(eventsProvider(widget.cityName));
+      if (mounted) {
+        Navigator.of(context).pop();
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Вы присоединились к событию!'),
+          backgroundColor: AppColors.success,
+          behavior: SnackBarBehavior.floating,
+        ));
+      }
+    } on DioException catch (e) {
+      if (mounted) {
+        final msg = e.response?.statusCode == 404
+            ? 'Неверный код'
+            : e.response?.statusCode == 409
+                ? 'Мест нет'
+                : 'Ошибка';
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(msg),
+          backgroundColor: AppColors.error,
+          behavior: SnackBarBehavior.floating,
+        ));
+      }
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  void _showCodeDialog() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.surface,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.only(
+          left: 24,
+          right: 24,
+          top: 24,
+          bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('🔒  Введи код приглашения',
+                style: TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700)),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _codeController,
+              textCapitalization: TextCapitalization.characters,
+              style: const TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 24,
+                  letterSpacing: 4,
+                  fontWeight: FontWeight.w700),
+              decoration: InputDecoration(
+                hintText: 'XXXXXX',
+                hintStyle: const TextStyle(
+                    color: AppColors.textHint, letterSpacing: 4),
+                filled: true,
+                fillColor: AppColors.surfaceVariant,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: AppColors.glassBorder),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: AppColors.glassBorder),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide:
+                      const BorderSide(color: Color(0xFF6B21A8), width: 2),
+                ),
+              ),
+              onSubmitted: (_) => _submit(),
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: _loading ? null : _submit,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF6B21A8),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                ),
+                child: _loading
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: Colors.white))
+                    : const Text('Войти',
+                        style: TextStyle(
+                            fontSize: 16, fontWeight: FontWeight.w600)),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return OutlinedButton.icon(
+      onPressed: _showCodeDialog,
+      style: OutlinedButton.styleFrom(
+        side: const BorderSide(color: Color(0xFF6B21A8)),
+        foregroundColor: const Color(0xFF6B21A8),
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+      icon: const Icon(Icons.lock_open_rounded, size: 18),
+      label: const Text('Войти по коду',
+          style: TextStyle(fontWeight: FontWeight.w600)),
     );
   }
 }

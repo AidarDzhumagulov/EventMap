@@ -7,7 +7,7 @@ import (
 	"event-map/internal/middleware"
 	"event-map/internal/models"
 	"event-map/internal/repository"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"strings"
@@ -41,10 +41,13 @@ func (h *Handler) RegisterUser(w http.ResponseWriter, r *http.Request) {
 	var registerUser models.RegisterUser
 	var newUser models.User
 
-	err := json.NewDecoder(r.Body).Decode(&registerUser)
-
-	if err != nil {
+	if err := json.NewDecoder(r.Body).Decode(&registerUser); err != nil {
 		http.Error(w, "Неверный формат JSON", http.StatusBadRequest)
+		return
+	}
+
+	if registerUser.Email == "" || registerUser.Username == "" || registerUser.Password == "" {
+		http.Error(w, "email, username и password обязательны", http.StatusBadRequest)
 		return
 	}
 
@@ -69,30 +72,21 @@ func (h *Handler) RegisterUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	newUser.PasswordHash = string(hash)
-
-	newUser.ID = uuid.New()
-
 	newUser.Rating = 0.0
-
 	newUser.Username = registerUser.Username
-
 	newUser.Email = registerUser.Email
-
 	newUser.Role = "user"
 
-	err = h.userRepo.Create(newUser)
-
+	created, err := h.userRepo.Create(newUser)
 	if err != nil {
-		log.Println("RegisterUser: ошибка создания пользователя:", err)
+		slog.Error("RegisterUser: db error", "err", err)
 		http.Error(w, "Ошибка при записи в БД", http.StatusInternalServerError)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-
 	w.WriteHeader(http.StatusCreated)
-
-	json.NewEncoder(w).Encode(newUser)
+	json.NewEncoder(w).Encode(created)
 
 }
 

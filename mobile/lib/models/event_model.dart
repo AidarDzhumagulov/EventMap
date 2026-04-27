@@ -25,6 +25,7 @@ class EventModel {
   final int? categoryId;
   final String category;
   final String categoryEmoji;
+  final String? inviteCode;
 
   const EventModel({
     required this.id,
@@ -45,6 +46,7 @@ class EventModel {
     this.categoryId,
     required this.category,
     required this.categoryEmoji,
+    this.inviteCode,
   });
 
   factory EventModel.fromJson(Map<String, dynamic> json) {
@@ -73,6 +75,7 @@ class EventModel {
       membersCount: (json['members_count'] as int?) ?? 0,
       category: json['category_name'] as String? ?? '',
       categoryEmoji: categoryEmojiMap[json['category_alias'] as String?] ?? '📍',
+      inviteCode: json['invite_code'] as String?,
     );
   }
 
@@ -107,6 +110,7 @@ class EventModel {
       categoryId: categoryId,
       category: category,
       categoryEmoji: categoryEmoji,
+      inviteCode: inviteCode,
     );
   }
 

@@ -42,7 +42,8 @@ func (h *EventHandler) CreateEvent(w http.ResponseWriter, r *http.Request) {
 
 	slog.Info("CreateEvent: request", "user_id", userID, "title", req.Title, "lat", req.Lat, "lon", req.Lon, "city", req.CityName, "location_id", req.LocationID)
 
-	if req.Title == "" || req.CityName == "" || req.Lat == 0 || req.Lon == 0 || req.StartTime.IsZero() {
+	if req.Title == "" || req.CityName == "" || req.StartTime.IsZero() ||
+		req.Lat < -90 || req.Lat > 90 || req.Lon < -180 || req.Lon > 180 {
 		http.Error(w, "Обязательные поля: title, city_name, lat, lon, start_time", http.StatusBadRequest)
 		return
 	}

@@ -54,6 +54,7 @@ type Event struct {
 	LocationAddress *string    `json:"location_address" db:"location_address"`
 	CategoryName    *string    `json:"category_name" db:"category_name"`
 	CategoryAlias   *string    `json:"category_alias" db:"category_alias"`
+	InviteCode      *string    `json:"invite_code,omitempty" db:"invite_code"`
 }
 
 type CreateEventRequest struct {

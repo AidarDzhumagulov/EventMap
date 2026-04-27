@@ -1,14 +1,27 @@
 package repository
 
 import (
+	"crypto/rand"
 	"database/sql"
 	"errors"
 	"event-map/internal/models"
+	"math/big"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 )
+
+const inviteCodeChars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+
+func generateInviteCode() string {
+	code := make([]byte, 6)
+	for i := range code {
+		n, _ := rand.Int(rand.Reader, big.NewInt(int64(len(inviteCodeChars))))
+		code[i] = inviteCodeChars[n.Int64()]
+	}
+	return string(code)
+}
 
 var ErrNotFound = errors.New("not found")
 
@@ -23,6 +36,7 @@ const eventSelect = `
 	       l.address AS location_address,
 	       c.name_ru AS category_name,
 	       c.alias   AS category_alias,
+	       e.invite_code,
 	       (SELECT COUNT(*) FROM event_members WHERE event_id = e.id AND status = 'go')::int AS members_count
 	FROM events e
 	LEFT JOIN locations l ON l.id = e.location_id
@@ -58,27 +72,47 @@ func NewEventRepository(db *sqlx.DB) *EventRepository {
 }
 
 func (r *EventRepository) Create(req models.CreateEventRequest, userID uuid.UUID) (models.Event, error) {
+	var inviteCode *string
+	if req.IsPrivate {
+		code := generateInviteCode()
+		inviteCode = &code
+	}
+
 	query := `
 		INSERT INTO events (
 			title, description, cover_url, lat, lon, city_name,
 			start_time, end_time, is_private, max_members, category_id, location_id, created_by,
-			geom
+			invite_code, geom
 		) VALUES (
 			$1, $2, $3, $4, $5, $6,
 			$7, $8, $9, $10, $11, $12, $13,
-			ST_SetSRID(ST_MakePoint($5, $4), 4326)
+			$14, ST_SetSRID(ST_MakePoint($5, $4), 4326)
 		) RETURNING id`
 
 	var id string
 	err := r.db.QueryRowx(query,
 		req.Title, req.Description, req.CoverURL, req.Lat, req.Lon, req.CityName,
 		req.StartTime, req.EndTime, req.IsPrivate, req.MaxMembers, req.CategoryID, req.LocationID, userID,
+		inviteCode,
 	).Scan(&id)
 	if err != nil {
 		return models.Event{}, err
 	}
 	eventID, _ := uuid.Parse(id)
 	return r.GetByID(eventID)
+}
+
+func (r *EventRepository) GetByInviteCode(code string) (models.Event, error) {
+	var event models.Event
+	query := eventSelect + ` WHERE e.invite_code = $1 AND e.deleted_at IS NULL`
+	err := r.db.Get(&event, query, code)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return models.Event{}, ErrNotFound
+		}
+		return models.Event{}, err
+	}
+	return computeStatus(event), nil
 }
 
 func (r *EventRepository) GetNearby(lat, lon, radiusMeters float64, limit int) ([]models.Event, error) {

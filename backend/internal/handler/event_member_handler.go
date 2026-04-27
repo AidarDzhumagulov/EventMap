@@ -138,6 +138,54 @@ func (h *EventMemberHandler) GetMembers(w http.ResponseWriter, r *http.Request) 
 	json.NewEncoder(w).Encode(members)
 }
 
+// POST /events/join-by-code?code=XXXXXX — вступить в закрытое событие по коду
+func (h *EventMemberHandler) JoinByCode(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Разрешен только POST метод", http.StatusMethodNotAllowed)
+		return
+	}
+
+	userID, ok := middleware.GetUserID(r)
+	if !ok {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	code := r.URL.Query().Get("code")
+	if len(code) == 0 {
+		http.Error(w, "Укажите код приглашения", http.StatusBadRequest)
+		return
+	}
+
+	event, err := h.eventRepo.GetByInviteCode(code)
+	if err != nil {
+		http.Error(w, "Неверный код приглашения", http.StatusNotFound)
+		return
+	}
+
+	if event.MaxMembers != nil {
+		count, err := h.memberRepo.CountMembers(event.ID)
+		if err != nil {
+			http.Error(w, "Ошибка проверки мест", http.StatusInternalServerError)
+			return
+		}
+		if count >= *event.MaxMembers {
+			http.Error(w, "Мест нет", http.StatusConflict)
+			return
+		}
+	}
+
+	member, err := h.memberRepo.Join(event.ID, userID, "go")
+	if err != nil {
+		http.Error(w, "Ошибка записи на событие", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(member)
+}
+
 func (h *EventMemberHandler) Leave(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodDelete {
 		http.Error(w, "Разрешен только DELETE метод", http.StatusMethodNotAllowed)
