@@ -16,7 +16,7 @@ import '../providers/events_provider.dart';
 import '../repository/category_repository.dart';
 import '../widgets/event_bottom_sheet.dart';
 import '../widgets/event_marker.dart';
-import 'create_event_screen.dart';
+import '../../event/screens/event_form_screen.dart';
 
 class HomeMapScreen extends ConsumerStatefulWidget {
   const HomeMapScreen({super.key});
@@ -218,7 +218,7 @@ class _HomeMapScreenState extends ConsumerState<HomeMapScreen> {
                   final city = ref.read(selectedCityProvider);
                   Navigator.of(context).push(
                     MaterialPageRoute(
-                      builder: (_) => CreateEventScreen(
+                      builder: (_) => EventFormScreen(
                         initialLat: center.latitude,
                         initialLon: center.longitude,
                         initialCity: city,

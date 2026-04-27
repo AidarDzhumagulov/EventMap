@@ -10,7 +10,7 @@ import '../../map/providers/events_provider.dart';
 import '../../profile/repository/user_repository.dart';
 import '../../saved/screens/saved_screen.dart';
 import '../widgets/rsvp_buttons.dart';
-import 'edit_event_screen.dart';
+import 'event_form_screen.dart';
 
 class EventDetailScreen extends ConsumerStatefulWidget {
   final EventModel event;
@@ -152,7 +152,7 @@ class _EventDetailScreenState extends ConsumerState<EventDetailScreen> {
               onPressed: () async {
                 final updated = await Navigator.of(context)
                     .push<EventModel>(MaterialPageRoute(
-                  builder: (_) => EditEventScreen(event: _event),
+                  builder: (_) => EventFormScreen(event: _event),
                 ));
                 if (updated != null && mounted) {
                   setState(() => _event = updated);

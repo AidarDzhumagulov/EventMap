@@ -95,6 +95,13 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
       }
     } catch (_) {
       _address = null;
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Не удалось определить адрес'),
+          behavior: SnackBarBehavior.floating,
+          duration: Duration(seconds: 2),
+        ));
+      }
     } finally {
       if (mounted) setState(() => _isGeocoding = false);
     }

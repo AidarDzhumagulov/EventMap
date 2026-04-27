@@ -89,10 +89,24 @@ class FeedScreen extends ConsumerWidget {
                 loading: () => const Center(
                   child: CircularProgressIndicator(color: AppColors.primary),
                 ),
-                error: (_, __) => const Center(
-                  child: Text(
-                    'Не удалось загрузить события',
-                    style: TextStyle(color: AppColors.textSecondary),
+                error: (_, __) => Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Text(
+                        'Не удалось загрузить события',
+                        style: TextStyle(color: AppColors.textSecondary),
+                      ),
+                      const SizedBox(height: 16),
+                      TextButton.icon(
+                        onPressed: () =>
+                            ref.invalidate(eventsProvider(selectedCity)),
+                        icon: const Icon(Icons.refresh_rounded,
+                            color: AppColors.primary),
+                        label: const Text('Повторить',
+                            style: TextStyle(color: AppColors.primary)),
+                      ),
+                    ],
                   ),
                 ),
                 data: (events) => events.isEmpty
