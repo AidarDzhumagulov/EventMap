@@ -140,7 +140,6 @@ func (r *EventRepository) GetByID(id uuid.UUID) (models.Event, error) {
 }
 
 func (r *EventRepository) Update(id uuid.UUID, req models.UpdateEventRequest, userID uuid.UUID) (models.Event, error) {
-	var event models.Event
 	query := `
 		UPDATE events SET
 			title = $1,
@@ -154,20 +153,22 @@ func (r *EventRepository) Update(id uuid.UUID, req models.UpdateEventRequest, us
 			updated_at = now(),
 			updated_by = $9
 		WHERE id = $10 AND created_by = $9 AND deleted_at IS NULL
-		RETURNING *`
+		RETURNING id`
 
-	err := r.db.Get(&event, query,
+	var updatedID string
+	err := r.db.QueryRowx(query,
 		req.Title, req.Description, req.CoverURL, req.StartTime, req.EndTime,
 		req.IsPrivate, req.MaxMembers, req.CategoryID,
 		userID, id,
-	)
+	).Scan(&updatedID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return models.Event{}, ErrNotFound
 		}
 		return models.Event{}, err
 	}
-	return computeStatus(event), nil
+	eventID, _ := uuid.Parse(updatedID)
+	return r.GetByID(eventID)
 }
 
 func (r *EventRepository) Delete(id uuid.UUID, userID uuid.UUID) error {
