@@ -209,3 +209,39 @@ func (h *EventHandler) GetEvent(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(event)
 }
+
+func (h *EventHandler) GetNearby(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Разрешен только GET метод", http.StatusMethodNotAllowed)
+		return
+	}
+
+	lat, errLat := strconv.ParseFloat(r.URL.Query().Get("lat"), 64)
+	lon, errLon := strconv.ParseFloat(r.URL.Query().Get("lon"), 64)
+	if errLat != nil || errLon != nil {
+		http.Error(w, "Укажите lat и lon", http.StatusBadRequest)
+		return
+	}
+
+	radius := 5000.0
+	if v, err := strconv.ParseFloat(r.URL.Query().Get("radius"), 64); err == nil && v > 0 {
+		radius = v
+	}
+
+	limit := 50
+	if v, err := strconv.Atoi(r.URL.Query().Get("limit")); err == nil && v > 0 {
+		if v > 200 {
+			v = 200
+		}
+		limit = v
+	}
+
+	events, err := h.eventRepo.GetNearby(lat, lon, radius, limit)
+	if err != nil {
+		http.Error(w, "Ошибка получения событий", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(events)
+}

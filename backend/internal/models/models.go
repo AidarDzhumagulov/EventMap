@@ -135,3 +135,43 @@ type CreateLocationRequest struct {
 	Provider   string  `json:"provider"`
 	ExternalID *string `json:"external_id"`
 }
+
+type Organization struct {
+	ID          uuid.UUID  `json:"id" db:"id"`
+	Name        string     `json:"name" db:"name"`
+	Description *string    `json:"description" db:"description"`
+	IsVerified  bool       `json:"is_verified" db:"is_verified"`
+	BillingInfo *string    `json:"billing_info,omitempty" db:"billing_info"`
+	CreatedAt   time.Time  `json:"created_at" db:"created_at"`
+	CreatedBy   uuid.UUID  `json:"created_by" db:"created_by"`
+}
+
+type CreateOrganizationRequest struct {
+	Name        string  `json:"name"`
+	Description *string `json:"description"`
+}
+
+type UpdateOrganizationRequest struct {
+	Name        string  `json:"name"`
+	Description *string `json:"description"`
+}
+
+type BusinessMember struct {
+	UserID         uuid.UUID `json:"user_id" db:"user_id"`
+	OrganizationID uuid.UUID `json:"organization_id" db:"organization_id"`
+	Role           string    `json:"role" db:"role"`
+	JoinedAt       time.Time `json:"joined_at" db:"joined_at"`
+}
+
+type BusinessMemberUser struct {
+	UserID         uuid.UUID `json:"user_id" db:"user_id"`
+	Username       string    `json:"username" db:"username"`
+	AvatarURL      *string   `json:"avatar_url" db:"avatar_url"`
+	Role           string    `json:"role" db:"role"`
+	JoinedAt       time.Time `json:"joined_at" db:"joined_at"`
+}
+
+type AddMemberRequest struct {
+	UserID uuid.UUID `json:"user_id"`
+	Role   string    `json:"role"`
+}

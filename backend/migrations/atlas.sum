@@ -1,4 +1,4 @@
-h1:He9z4YUH4JjgGo4Sz+hObnT0QWpO3o+f1Z0RwEZMjkU=
+h1:2TfOO4kyPZqlh5/ZiqzkBiu9lFCsqhtxa+weBWKVOUQ=
 20260324104427_create_users_table.sql h1:9HnC2BeLgIlVj5smAqKbUjylJxlKIy5VJ7VKnkp7U4s=
 20260324105800_add_uuid_default.sql h1:slG1m1U/tQRM+skUIHiykvEdYkQg1uct4knac0vt5WA=
 20260324111738_add_password.sql h1:f64mP3U9mPGzdB7xmWEM4bLf7I81ev12CfW4VIeAg9E=
@@ -11,3 +11,5 @@ h1:He9z4YUH4JjgGo4Sz+hObnT0QWpO3o+f1Z0RwEZMjkU=
 20260425093914_add_saved_events.sql h1:rwROmKbbJZIC+WnHS8HMZ69WkrB7d/gU7u3oS9KDWbg=
 20260426120000_add_avatar_url.sql h1:xzOJx6ikrkFV4UMRz9CqVXl36aQsJ/pddDI4Xdf7mJI=
 20260427100000_add_locations.sql h1:oWlsrocp/NIFoyG/nhXpj537Jh4ooNtY9xS1lc141F8=
+20260427110000_enable_postgis.sql h1:moACENSrDdNEaW4K/WpcllOam5ag0lPYlMZVKcBxudY=
+20260427120000_add_organizations.sql h1:Wrqx30aQartTid/oxp20hFPzqtc1GSOh5n7s8srHgXI=

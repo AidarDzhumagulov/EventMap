@@ -77,8 +77,29 @@ func main() {
 	http.HandleFunc("/events/leave", middleware.AuthMiddleware(memberHandler.Leave))
 	http.HandleFunc("/events/my-status", middleware.AuthMiddleware(memberHandler.GetMyStatus))
 	http.HandleFunc("/events/members", middleware.AuthMiddleware(memberHandler.GetMembers))
+	http.HandleFunc("/events/nearby", middleware.AuthMiddleware(eventHandler.GetNearby))
 	http.HandleFunc("/events/update", middleware.AuthMiddleware(eventHandler.UpdateEvent))
 	http.HandleFunc("/events/delete", middleware.AuthMiddleware(eventHandler.DeleteEvent))
+
+	orgRepo := repository.NewOrganizationRepository(db)
+	orgHandler := handler.NewOrganizationHandler(orgRepo)
+	http.HandleFunc("/organizations/create", middleware.AuthMiddleware(orgHandler.Create))
+	http.HandleFunc("/organizations/my", middleware.AuthMiddleware(orgHandler.GetMy))
+	http.HandleFunc("/organizations/detail", middleware.AuthMiddleware(orgHandler.GetByID))
+	http.HandleFunc("/organizations/update", middleware.AuthMiddleware(orgHandler.Update))
+	http.HandleFunc("/organizations/delete", middleware.AuthMiddleware(orgHandler.Delete))
+	http.HandleFunc("/organizations/members", middleware.AuthMiddleware(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			orgHandler.GetMembers(w, r)
+		case http.MethodPost:
+			orgHandler.AddMember(w, r)
+		case http.MethodDelete:
+			orgHandler.RemoveMember(w, r)
+		default:
+			http.Error(w, "Метод не поддерживается", http.StatusMethodNotAllowed)
+		}
+	}))
 
 	savedRepo := repository.NewSavedEventRepository(db)
 	savedHandler := handler.NewSavedEventHandler(savedRepo)

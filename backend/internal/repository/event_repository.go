@@ -12,11 +12,16 @@ import (
 
 var ErrNotFound = errors.New("not found")
 
-// базовый SELECT с реальным счётчиком участников и адресом локации
+// базовый SELECT — явный список колонок чтобы исключить geom (PostGIS тип, несовместим с sqlx scan)
 const eventSelect = `
-	SELECT e.*,
-		l.address AS location_address,
-		(SELECT COUNT(*) FROM event_members WHERE event_id = e.id AND status = 'go')::int AS members_count
+	SELECT e.id, e.title, e.description, e.cover_url,
+	       e.lat, e.lon, e.city_name,
+	       e.start_time, e.end_time, e.is_private, e.status,
+	       e.max_members, e.category_id, e.organization_id, e.location_id,
+	       e.created_by, e.created_at, e.updated_at, e.updated_by,
+	       e.deleted_at, e.deleted_by,
+	       l.address AS location_address,
+	       (SELECT COUNT(*) FROM event_members WHERE event_id = e.id AND status = 'go')::int AS members_count
 	FROM events e
 	LEFT JOIN locations l ON l.id = e.location_id`
 
@@ -50,24 +55,45 @@ func NewEventRepository(db *sqlx.DB) *EventRepository {
 }
 
 func (r *EventRepository) Create(req models.CreateEventRequest, userID uuid.UUID) (models.Event, error) {
-	var event models.Event
 	query := `
 		INSERT INTO events (
 			title, description, cover_url, lat, lon, city_name,
-			start_time, end_time, is_private, max_members, category_id, location_id, created_by
+			start_time, end_time, is_private, max_members, category_id, location_id, created_by,
+			geom
 		) VALUES (
 			$1, $2, $3, $4, $5, $6,
-			$7, $8, $9, $10, $11, $12, $13
-		) RETURNING *`
+			$7, $8, $9, $10, $11, $12, $13,
+			ST_SetSRID(ST_MakePoint($5, $4), 4326)
+		) RETURNING id`
 
-	err := r.db.Get(&event, query,
+	var id string
+	err := r.db.QueryRowx(query,
 		req.Title, req.Description, req.CoverURL, req.Lat, req.Lon, req.CityName,
 		req.StartTime, req.EndTime, req.IsPrivate, req.MaxMembers, req.CategoryID, req.LocationID, userID,
-	)
+	).Scan(&id)
 	if err != nil {
 		return models.Event{}, err
 	}
-	return computeStatus(event), nil
+	eventID, _ := uuid.Parse(id)
+	return r.GetByID(eventID)
+}
+
+func (r *EventRepository) GetNearby(lat, lon, radiusMeters float64, limit int) ([]models.Event, error) {
+	var events []models.Event
+	query := eventSelect + `
+		WHERE e.deleted_at IS NULL
+		  AND ST_DWithin(
+		        e.geom::geography,
+		        ST_SetSRID(ST_MakePoint($2, $1), 4326)::geography,
+		        $3
+		      )
+		ORDER BY e.geom <-> ST_SetSRID(ST_MakePoint($2, $1), 4326)
+		LIMIT $4`
+	err := r.db.Select(&events, query, lat, lon, radiusMeters, limit)
+	if err != nil {
+		return nil, err
+	}
+	return computeStatuses(events), nil
 }
 
 func (r *EventRepository) GetAll(cityName string, status string, search string, limit int, offset int) ([]models.Event, error) {
