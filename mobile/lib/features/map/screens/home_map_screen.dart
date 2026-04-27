@@ -199,52 +199,6 @@ class _HomeMapScreenState extends ConsumerState<HomeMapScreen> {
         ],
       ),
 
-      // FAB — добавить событие (только на вкладке карты)
-
-      floatingActionButton: _selectedNavIndex == 0 && selectedEvent == null
-          ? Container(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(18),
-                boxShadow: [
-                  BoxShadow(
-                    color: AppColors.primary.withOpacity(0.4),
-                    blurRadius: 20,
-                    spreadRadius: 2,
-                  ),
-                ],
-              ),
-              child: FloatingActionButton.extended(
-                onPressed: () async {
-                  if (_isNavigating) return;
-                  _isNavigating = true;
-                  final center = ref.read(mapCenterProvider);
-                  final city = ref.read(selectedCityProvider);
-                  await Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => EventFormScreen(
-                        initialLat: center.latitude,
-                        initialLon: center.longitude,
-                        initialCity: city,
-                      ),
-                    ),
-                  );
-                  _isNavigating = false;
-                },
-                backgroundColor: AppColors.primary,
-                foregroundColor: AppColors.background,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(18),
-                ),
-                icon: const Icon(Icons.add_rounded, size: 22),
-                label: const Text(
-                  'Создать событие',
-                  style: TextStyle(fontWeight: FontWeight.w600),
-                ),
-              ),
-            )
-          : null,
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
-
       // Bottom navigation bar — скрываем только когда открыт bottom sheet на карте
       bottomNavigationBar:
           (_selectedNavIndex == 0 && selectedEvent != null)
@@ -676,11 +630,50 @@ class _HomeMapScreenState extends ConsumerState<HomeMapScreen> {
             children: [
               _navItem(0, Icons.map_rounded, 'Карта'),
               _navItem(1, Icons.explore_rounded, 'Лента'),
+              _createButton(),
               _navItem(2, Icons.favorite_border_rounded, 'Сохранённые'),
               _navItem(3, Icons.person_outline_rounded, 'Профиль'),
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _createButton() {
+    return GestureDetector(
+      onTap: () async {
+        if (_isNavigating) return;
+        _isNavigating = true;
+        final center = ref.read(mapCenterProvider);
+        final city = ref.read(selectedCityProvider);
+        await Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => EventFormScreen(
+              initialLat: center.latitude,
+              initialLon: center.longitude,
+              initialCity: city,
+            ),
+          ),
+        );
+        _isNavigating = false;
+      },
+      child: Container(
+        width: 52,
+        height: 52,
+        decoration: BoxDecoration(
+          color: AppColors.primary,
+          shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.primary.withValues(alpha: 0.4),
+              blurRadius: 16,
+              spreadRadius: 2,
+              offset: const Offset(0, -2),
+            ),
+          ],
+        ),
+        child: const Icon(Icons.add_rounded, color: Colors.white, size: 28),
       ),
     );
   }
