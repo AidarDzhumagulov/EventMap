@@ -6,12 +6,12 @@ import (
 	"event-map/internal/middleware"
 	"event-map/internal/models"
 	"event-map/internal/repository"
+	"log/slog"
 	"net/http"
 	"strconv"
 
 	"github.com/google/uuid"
 )
-
 
 type EventHandler struct {
 	eventRepo *repository.EventRepository
@@ -35,9 +35,12 @@ func (h *EventHandler) CreateEvent(w http.ResponseWriter, r *http.Request) {
 
 	var req models.CreateEventRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		slog.Error("CreateEvent: decode body", "err", err)
 		http.Error(w, "Неверный формат JSON", http.StatusBadRequest)
 		return
 	}
+
+	slog.Info("CreateEvent: request", "user_id", userID, "title", req.Title, "lat", req.Lat, "lon", req.Lon, "city", req.CityName, "location_id", req.LocationID)
 
 	if req.Title == "" || req.CityName == "" || req.Lat == 0 || req.Lon == 0 || req.StartTime.IsZero() {
 		http.Error(w, "Обязательные поля: title, city_name, lat, lon, start_time", http.StatusBadRequest)
@@ -46,6 +49,7 @@ func (h *EventHandler) CreateEvent(w http.ResponseWriter, r *http.Request) {
 
 	event, err := h.eventRepo.Create(req, userID)
 	if err != nil {
+		slog.Error("CreateEvent: db error", "err", err, "user_id", userID)
 		http.Error(w, "Ошибка создания события", http.StatusInternalServerError)
 		return
 	}
@@ -79,6 +83,7 @@ func (h *EventHandler) GetEvents(w http.ResponseWriter, r *http.Request) {
 
 	events, err := h.eventRepo.GetAll(city, status, search, limit, offset)
 	if err != nil {
+		slog.Error("GetEvents: db error", "err", err, "city", city)
 		http.Error(w, "Ошибка получения событий", http.StatusInternalServerError)
 		return
 	}
@@ -102,6 +107,7 @@ func (h *EventHandler) GetMyEvents(w http.ResponseWriter, r *http.Request) {
 
 	events, err := h.eventRepo.GetByUserID(userID)
 	if err != nil {
+		slog.Error("GetMyEvents: db error", "err", err, "user_id", userID)
 		http.Error(w, "Ошибка получения событий", http.StatusInternalServerError)
 		return
 	}
@@ -132,6 +138,7 @@ func (h *EventHandler) UpdateEvent(w http.ResponseWriter, r *http.Request) {
 
 	var req models.UpdateEventRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		slog.Error("UpdateEvent: decode body", "err", err)
 		http.Error(w, "Неверный формат JSON", http.StatusBadRequest)
 		return
 	}
@@ -147,6 +154,7 @@ func (h *EventHandler) UpdateEvent(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Событие не найдено или нет прав", http.StatusForbidden)
 			return
 		}
+		slog.Error("UpdateEvent: db error", "err", err, "id", id)
 		http.Error(w, "Ошибка обновления события", http.StatusInternalServerError)
 		return
 	}
@@ -179,6 +187,7 @@ func (h *EventHandler) DeleteEvent(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Событие не найдено или нет прав", http.StatusForbidden)
 			return
 		}
+		slog.Error("DeleteEvent: db error", "err", err, "id", id)
 		http.Error(w, "Ошибка удаления события", http.StatusInternalServerError)
 		return
 	}
@@ -201,6 +210,7 @@ func (h *EventHandler) GetEvent(w http.ResponseWriter, r *http.Request) {
 
 	event, err := h.eventRepo.GetByID(id)
 	if err != nil {
+		slog.Error("GetEvent: db error", "err", err, "id", id)
 		http.Error(w, "Событие не найдено", http.StatusNotFound)
 		return
 	}
@@ -238,6 +248,7 @@ func (h *EventHandler) GetNearby(w http.ResponseWriter, r *http.Request) {
 
 	events, err := h.eventRepo.GetNearby(lat, lon, radius, limit)
 	if err != nil {
+		slog.Error("GetNearby: db error", "err", err, "lat", lat, "lon", lon, "radius", radius)
 		http.Error(w, "Ошибка получения событий", http.StatusInternalServerError)
 		return
 	}

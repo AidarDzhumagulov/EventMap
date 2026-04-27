@@ -6,6 +6,7 @@ import (
 	"event-map/internal/middleware"
 	"event-map/internal/repository"
 	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"strconv"
@@ -15,8 +16,11 @@ import (
 )
 
 func main() {
-
 	godotenv.Load()
+
+	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
+		Level: slog.LevelDebug,
+	})))
 
 	poolSize, _ := strconv.Atoi(os.Getenv("DB_POOL_SIZE"))
 	maxOverflow, _ := strconv.Atoi(os.Getenv("DB_MAX_OVERFLOW"))
@@ -34,61 +38,77 @@ func main() {
 		MaxLifetime:  time.Duration(poolRecycle) * time.Second,
 		MaxIdleTime:  time.Duration(poolTimeout) * time.Second,
 	})
-
 	if err != nil {
 		log.Fatalln("Не удалось подключиться к БД:", err)
 	}
-
 	defer db.Close()
 
-	http.HandleFunc("/ping", pingHandler)
+	auth := middleware.AuthLogging
+	pub := middleware.LoggingMiddleware
+
+	http.HandleFunc("/ping", pub(pingHandler))
 
 	storage := core.NewStorage()
 
 	userRepo := repository.NewUserRepository(db)
 	h := handler.NewHandler(userRepo)
-
 	uploadHandler := handler.NewUploadHandler(storage)
-	http.HandleFunc("/upload", middleware.AuthMiddleware(uploadHandler.Upload))
-	http.HandleFunc("/register", h.RegisterUser)
-	http.HandleFunc("/login", h.Login)
-	http.HandleFunc("/refresh", h.Refresh)
-	http.HandleFunc("/me", middleware.AuthMiddleware(h.Me))
-	http.HandleFunc("/me/update", middleware.AuthMiddleware(h.UpdateMe))
+
+	http.HandleFunc("/upload", auth(uploadHandler.Upload))
+	http.HandleFunc("/register", pub(h.RegisterUser))
+	http.HandleFunc("/login", pub(h.Login))
+	http.HandleFunc("/refresh", pub(h.Refresh))
+	http.HandleFunc("/me", auth(h.Me))
+	http.HandleFunc("/me/update", auth(h.UpdateMe))
 
 	categoryRepo := repository.NewCategoryRepository(db)
 	categoryHandler := handler.NewCategoryHandler(categoryRepo)
-	http.HandleFunc("/categories", categoryHandler.GetCategories)
+	http.HandleFunc("/categories", pub(categoryHandler.GetCategories))
 
 	locationRepo := repository.NewLocationRepository(db)
 	locationHandler := handler.NewLocationHandler(locationRepo)
-	http.HandleFunc("/locations/create", middleware.AuthMiddleware(locationHandler.CreateLocation))
+	http.HandleFunc("/locations/create", auth(locationHandler.CreateLocation))
 
 	eventRepo := repository.NewEventRepository(db)
 	eventHandler := handler.NewEventHandler(eventRepo)
-	http.HandleFunc("/events", middleware.AuthMiddleware(eventHandler.GetEvents))
-	http.HandleFunc("/events/create", middleware.AuthMiddleware(eventHandler.CreateEvent))
-	http.HandleFunc("/events/detail", middleware.AuthMiddleware(eventHandler.GetEvent))
-	http.HandleFunc("/events/my", middleware.AuthMiddleware(eventHandler.GetMyEvents))
+	http.HandleFunc("/events", auth(eventHandler.GetEvents))
+	http.HandleFunc("/events/create", auth(eventHandler.CreateEvent))
+	http.HandleFunc("/events/detail", auth(eventHandler.GetEvent))
+	http.HandleFunc("/events/my", auth(eventHandler.GetMyEvents))
+	http.HandleFunc("/events/nearby", auth(eventHandler.GetNearby))
+	http.HandleFunc("/events/update", auth(eventHandler.UpdateEvent))
+	http.HandleFunc("/events/delete", auth(eventHandler.DeleteEvent))
 
 	memberRepo := repository.NewEventMemberRepository(db)
 	memberHandler := handler.NewEventMemberHandler(memberRepo, eventRepo)
-	http.HandleFunc("/events/join", middleware.AuthMiddleware(memberHandler.Join))
-	http.HandleFunc("/events/leave", middleware.AuthMiddleware(memberHandler.Leave))
-	http.HandleFunc("/events/my-status", middleware.AuthMiddleware(memberHandler.GetMyStatus))
-	http.HandleFunc("/events/members", middleware.AuthMiddleware(memberHandler.GetMembers))
-	http.HandleFunc("/events/nearby", middleware.AuthMiddleware(eventHandler.GetNearby))
-	http.HandleFunc("/events/update", middleware.AuthMiddleware(eventHandler.UpdateEvent))
-	http.HandleFunc("/events/delete", middleware.AuthMiddleware(eventHandler.DeleteEvent))
+	http.HandleFunc("/events/join", auth(memberHandler.Join))
+	http.HandleFunc("/events/leave", auth(memberHandler.Leave))
+	http.HandleFunc("/events/my-status", auth(memberHandler.GetMyStatus))
+	http.HandleFunc("/events/members", auth(memberHandler.GetMembers))
+
+	savedRepo := repository.NewSavedEventRepository(db)
+	savedHandler := handler.NewSavedEventHandler(savedRepo)
+	http.HandleFunc("/events/save", auth(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodPost:
+			savedHandler.Save(w, r)
+		case http.MethodDelete:
+			savedHandler.Unsave(w, r)
+		default:
+			http.Error(w, "Метод не поддерживается", http.StatusMethodNotAllowed)
+		}
+	}))
+	http.HandleFunc("/events/saved", auth(savedHandler.GetSaved))
+	http.HandleFunc("/events/is-saved", auth(savedHandler.IsSaved))
 
 	orgRepo := repository.NewOrganizationRepository(db)
 	orgHandler := handler.NewOrganizationHandler(orgRepo)
-	http.HandleFunc("/organizations/create", middleware.AuthMiddleware(orgHandler.Create))
-	http.HandleFunc("/organizations/my", middleware.AuthMiddleware(orgHandler.GetMy))
-	http.HandleFunc("/organizations/detail", middleware.AuthMiddleware(orgHandler.GetByID))
-	http.HandleFunc("/organizations/update", middleware.AuthMiddleware(orgHandler.Update))
-	http.HandleFunc("/organizations/delete", middleware.AuthMiddleware(orgHandler.Delete))
-	http.HandleFunc("/organizations/members", middleware.AuthMiddleware(func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/organizations/create", auth(orgHandler.Create))
+	http.HandleFunc("/organizations/my", auth(orgHandler.GetMy))
+	http.HandleFunc("/organizations/detail", auth(orgHandler.GetByID))
+	http.HandleFunc("/organizations/update", auth(orgHandler.Update))
+	http.HandleFunc("/organizations/delete", auth(orgHandler.Delete))
+	http.HandleFunc("/organizations/members", auth(func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodGet:
 			orgHandler.GetMembers(w, r)
@@ -101,27 +121,9 @@ func main() {
 		}
 	}))
 
-	savedRepo := repository.NewSavedEventRepository(db)
-	savedHandler := handler.NewSavedEventHandler(savedRepo)
-	http.HandleFunc("/events/save", middleware.AuthMiddleware(func(w http.ResponseWriter, r *http.Request) {
-		switch r.Method {
-		case http.MethodPost:
-			savedHandler.Save(w, r)
-		case http.MethodDelete:
-			savedHandler.Unsave(w, r)
-		default:
-			http.Error(w, "Метод не поддерживается", http.StatusMethodNotAllowed)
-		}
-	}))
-	http.HandleFunc("/events/saved", middleware.AuthMiddleware(savedHandler.GetSaved))
-	http.HandleFunc("/events/is-saved", middleware.AuthMiddleware(savedHandler.IsSaved))
-
-	log.Println("Сервер Event Map запущен")
-
-	err = http.ListenAndServe(":8080", nil)
-
-	if err != nil {
-		log.Println("Ошибка запуска сервера:", err)
+	slog.Info("Event Map API запущен", "port", 8080)
+	if err := http.ListenAndServe(":8080", nil); err != nil {
+		log.Fatalln("Ошибка запуска сервера:", err)
 	}
 }
 
