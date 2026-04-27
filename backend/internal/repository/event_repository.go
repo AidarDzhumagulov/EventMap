@@ -21,9 +21,12 @@ const eventSelect = `
 	       e.created_by, e.created_at, e.updated_at, e.updated_by,
 	       e.deleted_at, e.deleted_by,
 	       l.address AS location_address,
+	       c.name_ru AS category_name,
+	       c.alias   AS category_alias,
 	       (SELECT COUNT(*) FROM event_members WHERE event_id = e.id AND status = 'go')::int AS members_count
 	FROM events e
-	LEFT JOIN locations l ON l.id = e.location_id`
+	LEFT JOIN locations l ON l.id = e.location_id
+	LEFT JOIN categories c ON c.id = e.category_id`
 
 // computeStatus вычисляет актуальный статус события по времени
 func computeStatus(e models.Event) models.Event {

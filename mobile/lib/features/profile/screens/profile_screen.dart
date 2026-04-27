@@ -41,12 +41,44 @@ class ProfileScreen extends ConsumerWidget {
             child: CircularProgressIndicator(color: AppColors.primary),
           ),
           error: (e, _) => Center(
-            child: Text(
-              'Ошибка загрузки профиля',
-              style: Theme.of(context)
-                  .textTheme
-                  .bodyMedium
-                  ?.copyWith(color: AppColors.textSecondary),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Ошибка загрузки профиля',
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodyMedium
+                      ?.copyWith(color: AppColors.textSecondary),
+                ),
+                const SizedBox(height: 24),
+                GestureDetector(
+                  onTap: () => ref.read(authProvider.notifier).logout(),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        vertical: 14, horizontal: 32),
+                    decoration: BoxDecoration(
+                      color: AppColors.surfaceVariant,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                          color: Colors.redAccent.withValues(alpha: 0.3)),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.logout_rounded,
+                            color: Colors.redAccent, size: 20),
+                        SizedBox(width: 10),
+                        Text('Выйти',
+                            style: TextStyle(
+                                color: Colors.redAccent,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 15)),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
           data: (user) => ListView(

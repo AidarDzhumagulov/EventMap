@@ -62,17 +62,16 @@ final dioClientProvider = Provider<Dio>((ref) {
               await saveTokens(storage,
                   accessToken: newAccess, refreshToken: newRefresh);
 
-              // Повторяем оригинальный запрос с новым токеном
               final opts = error.requestOptions;
               opts.headers['Authorization'] = 'Bearer $newAccess';
               final retryResponse = await dio.fetch(opts);
               return handler.resolve(retryResponse);
-            } catch (_) {
-              await storage.deleteAll();
-              ref.read(authStatusProvider.notifier).state =
-                  AuthStatus.unauthenticated;
-            }
+            } catch (_) {}
           }
+          // refresh-токена нет или refresh тоже вернул 401 — выбрасываем на логин
+          await storage.deleteAll();
+          ref.read(authStatusProvider.notifier).state =
+              AuthStatus.unauthenticated;
         }
         return handler.next(error);
       },

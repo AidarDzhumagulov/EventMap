@@ -1,5 +1,7 @@
 import 'package:latlong2/latlong.dart';
 
+import 'category_model.dart';
+
 enum EventPrivacy { public, private }
 
 enum EventStatus { upcoming, ongoing, finished }
@@ -69,8 +71,8 @@ class EventModel {
       categoryId: json['category_id'] as int?,
       createdBy: json['created_by'] as String,
       membersCount: (json['members_count'] as int?) ?? 0,
-      category: '',
-      categoryEmoji: '📍',
+      category: json['category_name'] as String? ?? '',
+      categoryEmoji: categoryEmojiMap[json['category_alias'] as String?] ?? '📍',
     );
   }
 

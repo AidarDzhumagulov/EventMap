@@ -1,3 +1,28 @@
+const categoryEmojiMap = {
+  'party': '🎉',
+  'concert': '🎵',
+  'cinema': '🎬',
+  'standup': '🎤',
+  'club': '🕺',
+  'football': '⚽',
+  'running': '🏃',
+  'skating': '🛹',
+  'yoga': '🧘',
+  'cycling': '🚴',
+  'lecture': '📚',
+  'workshop': '🛠️',
+  'meetup': '🤝',
+  'bar': '🍺',
+  'dinner': '🍽️',
+  'brunch': '🥞',
+  'it': '💻',
+  'business': '💼',
+  'startup': '🚀',
+  'picnic': '🧺',
+  'hiking': '🥾',
+  'camping': '⛺',
+};
+
 class CategoryModel {
   final int id;
   final String alias;
@@ -10,6 +35,8 @@ class CategoryModel {
     required this.nameRu,
     required this.categoryTypeId,
   });
+
+  String get emoji => categoryEmojiMap[alias] ?? '📍';
 
   factory CategoryModel.fromJson(Map<String, dynamic> json) {
     return CategoryModel(

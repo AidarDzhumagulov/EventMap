@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
-import '../../../core/network/dio_client.dart';
 import '../../../core/theme.dart';
 import '../../../models/event_model.dart';
 import '../../event/screens/event_detail_screen.dart';
+import '../../event/widgets/rsvp_buttons.dart';
 import '../providers/events_provider.dart';
 
 class EventBottomSheet extends ConsumerWidget {
@@ -107,7 +107,11 @@ class EventBottomSheet extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 12),
-          _buildActionButton(event, ref, context),
+          RsvpButtons(
+            eventId: event.id,
+            cityName: event.cityName,
+            isFull: event.isFull,
+          ),
         ],
       ),
     );
@@ -306,108 +310,4 @@ class EventBottomSheet extends ConsumerWidget {
     );
   }
 
-  Widget _buildActionButton(EventModel event, WidgetRef ref, BuildContext context) {
-    if (event.isFull) {
-      return Container(
-        width: double.infinity,
-        height: 56,
-        decoration: BoxDecoration(
-          color: AppColors.glassBackground,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.glassBorder),
-        ),
-        child: const Center(
-          child: Text(
-            'Мест нет',
-            style: TextStyle(
-              color: AppColors.textSecondary,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ),
-      );
-    }
-
-    return Row(
-      children: [
-        Expanded(
-          flex: 3,
-          child: NeonButton(
-            label: '✓  Иду',
-            onPressed: () => _joinEvent(event, ref, context, status: 'go'),
-            color: AppColors.primary,
-          ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: _statusChip(
-            icon: Icons.help_outline_rounded,
-            tooltip: 'Подумаю',
-            onTap: () => _joinEvent(event, ref, context, status: 'think'),
-          ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: _statusChip(
-            icon: Icons.close_rounded,
-            tooltip: 'Не пойду',
-            onTap: () => _joinEvent(event, ref, context, status: 'decline'),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _statusChip({
-    required IconData icon,
-    required String tooltip,
-    required VoidCallback onTap,
-  }) {
-    return Tooltip(
-      message: tooltip,
-      child: GestureDetector(
-        onTap: onTap,
-        child: Container(
-          height: 56,
-          decoration: BoxDecoration(
-            color: AppColors.surfaceVariant,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: AppColors.glassBorder),
-          ),
-          child: Icon(icon, color: AppColors.textSecondary, size: 20),
-        ),
-      ),
-    );
-  }
-
-  Future<void> _joinEvent(
-      EventModel event, WidgetRef ref, BuildContext context,
-      {String status = 'go'}) async {
-    try {
-      final dio = ref.read(dioClientProvider);
-      await dio.post('/events/join',
-          queryParameters: {'id': event.id, 'status': status});
-      if (context.mounted) {
-        final labels = {'go': 'Ты идёшь! 🎉', 'think': 'Отмечено — подумаешь 🤔', 'decline': 'Отказался 👋'};
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(labels[status] ?? 'Готово'),
-            backgroundColor: AppColors.primary,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      }
-      ref.invalidate(eventsProvider(event.cityName));
-    } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Не удалось обновить статус'),
-            backgroundColor: Colors.redAccent,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      }
-    }
-  }
 }

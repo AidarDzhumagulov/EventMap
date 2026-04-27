@@ -52,6 +52,8 @@ type Event struct {
 	DeletedAt       *time.Time `json:"-" db:"deleted_at"`
 	DeletedBy       *uuid.UUID `json:"-" db:"deleted_by"`
 	LocationAddress *string    `json:"location_address" db:"location_address"`
+	CategoryName    *string    `json:"category_name" db:"category_name"`
+	CategoryAlias   *string    `json:"category_alias" db:"category_alias"`
 }
 
 type CreateEventRequest struct {

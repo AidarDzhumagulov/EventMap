@@ -9,6 +9,7 @@ import '../../../models/event_model.dart';
 import '../../map/providers/events_provider.dart';
 import '../../profile/repository/user_repository.dart';
 import '../../saved/screens/saved_screen.dart';
+import '../widgets/rsvp_buttons.dart';
 import 'edit_event_screen.dart';
 
 class EventDetailScreen extends ConsumerStatefulWidget {
@@ -21,24 +22,14 @@ class EventDetailScreen extends ConsumerStatefulWidget {
 }
 
 class _EventDetailScreenState extends ConsumerState<EventDetailScreen> {
-  bool _isLoading = false;
   bool? _isSaved;
-  String? _myStatus; // 'go' | 'think' | 'decline' | null
-  late EventModel _event; // локальная копия, обновляется после редактирования
+  late EventModel _event;
 
   @override
   void initState() {
     super.initState();
     _event = widget.event;
-    _loadInitialState();
-  }
-
-  Future<void> _loadInitialState() async {
-    final dio = ref.read(dioClientProvider);
-    await Future.wait([
-      _loadSaveState(dio),
-      _loadMemberStatus(dio),
-    ]);
+    _loadSaveState(ref.read(dioClientProvider));
   }
 
   Future<void> _loadSaveState(dio) async {
@@ -49,19 +40,6 @@ class _EventDetailScreenState extends ConsumerState<EventDetailScreen> {
       if (mounted) setState(() => _isSaved = saved);
     } catch (_) {
       if (mounted) setState(() => _isSaved = false);
-    }
-  }
-
-  Future<void> _loadMemberStatus(dio) async {
-    try {
-      final response = await dio.get('/events/my-status',
-          queryParameters: {'id': _event.id});
-      if (response.statusCode == 200) {
-        final status = response.data['status'] as String?;
-        if (mounted) setState(() => _myStatus = status);
-      }
-    } catch (_) {
-      // не записан — оставляем null
     }
   }
 
@@ -83,50 +61,15 @@ class _EventDetailScreenState extends ConsumerState<EventDetailScreen> {
     }
   }
 
-  Future<void> _setStatus(String status) async {
-    setState(() => _isLoading = true);
-    try {
-      final dio = ref.read(dioClientProvider);
-      await dio.post('/events/join',
-          queryParameters: {'id': _event.id, 'status': status});
-      if (mounted) {
-        // Оптимистично обновляем счётчик (backend считает только 'go'):
-        // null/'think'/'decline' → 'go': +1
-        // 'go' → 'think'/'decline': -1
-        // остальные переходы: без изменений
-        final wasGo = _myStatus == 'go';
-        final becomesGo = status == 'go';
-        setState(() {
-          _myStatus = status;
-          if (!wasGo && becomesGo) {
-            _event = _event.copyWith(membersCount: _event.membersCount + 1);
-          } else if (wasGo && !becomesGo) {
-            _event = _event.copyWith(membersCount: _event.membersCount - 1);
-          }
-        });
-        final labels = {
-          'go': 'Ты идёшь!',
-          'think': 'Отмечено — подумаешь',
-          'decline': 'Отказался',
-        };
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(labels[status] ?? 'Готово'),
-          backgroundColor: AppColors.primary,
-          behavior: SnackBarBehavior.floating,
-        ));
-        ref.invalidate(eventsProvider(_event.cityName));
-      }
-    } catch (_) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Не удалось обновить статус'),
-          backgroundColor: Colors.redAccent,
-          behavior: SnackBarBehavior.floating,
-        ));
-      }
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
-    }
+  void _onRsvpChanged(String? oldStatus, String? newStatus) {
+    final wasGo = oldStatus == 'go';
+    final isGo = newStatus == 'go';
+    if (wasGo == isGo) return;
+    setState(() {
+      _event = _event.copyWith(
+        membersCount: _event.membersCount + (isGo ? 1 : -1),
+      );
+    });
   }
 
   Future<void> _deleteEvent() async {
@@ -315,101 +258,15 @@ class _EventDetailScreenState extends ConsumerState<EventDetailScreen> {
             const SizedBox(height: 24),
           ],
 
-          // Мой статус
-          if (_myStatus != null) ...[
-            _currentStatusBanner(_myStatus!),
-            const SizedBox(height: 16),
-          ],
-
-          // Кнопки статуса
-          if (!event.isFull || event.status == EventStatus.ongoing) ...[
-            Text(
-              _myStatus == null ? 'Мой статус' : 'Изменить статус',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  flex: 3,
-                  child: _actionButton(
-                    label: '✓  Иду',
-                    color: _myStatus == 'go'
-                        ? AppColors.primary
-                        : AppColors.surfaceVariant,
-                    textColor: _myStatus == 'go'
-                        ? Colors.white
-                        : AppColors.textPrimary,
-                    onTap: () => _setStatus('go'),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _iconButton(
-                    icon: Icons.help_outline_rounded,
-                    tooltip: 'Подумаю',
-                    active: _myStatus == 'think',
-                    onTap: () => _setStatus('think'),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _iconButton(
-                    icon: Icons.close_rounded,
-                    tooltip: 'Не пойду',
-                    active: _myStatus == 'decline',
-                    onTap: () => _setStatus('decline'),
-                  ),
-                ),
-              ],
-            ),
-          ],
-
-          if (event.isFull && _myStatus == null)
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              decoration: BoxDecoration(
-                color: AppColors.surfaceVariant,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: AppColors.glassBorder),
-              ),
-              child: const Center(
-                child: Text('Мест нет',
-                    style: TextStyle(color: AppColors.textSecondary)),
-              ),
-            ),
+          RsvpButtons(
+            eventId: event.id,
+            cityName: event.cityName,
+            isFull: event.isFull,
+            onStatusChanged: _onRsvpChanged,
+          ),
               ],
             ),
           ),
-        ],
-      ),
-    );
-  }
-
-  Widget _currentStatusBanner(String status) {
-    final map = {
-      'go': ('Ты идёшь!', Icons.check_circle_rounded, AppColors.success),
-      'think': ('Думаешь', Icons.help_rounded, AppColors.secondary),
-      'decline': ('Не идёшь', Icons.cancel_rounded, AppColors.error),
-    };
-    final (label, icon, color) = map[status]!;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withValues(alpha: 0.3)),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, color: color, size: 18),
-          const SizedBox(width: 10),
-          Text(label,
-              style: TextStyle(
-                  color: color, fontWeight: FontWeight.w600, fontSize: 14)),
         ],
       ),
     );
@@ -501,69 +358,6 @@ class _EventDetailScreenState extends ConsumerState<EventDetailScreen> {
     );
   }
 
-  Widget _actionButton({
-    required String label,
-    required Color color,
-    required Color textColor,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: _isLoading ? null : onTap,
-      child: Container(
-        height: 52,
-        decoration: BoxDecoration(
-          color: color,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: AppColors.glassBorder),
-        ),
-        child: Center(
-          child: _isLoading
-              ? const SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(
-                      strokeWidth: 2, color: AppColors.primary),
-                )
-              : Text(label,
-                  style: TextStyle(
-                      color: textColor,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 15)),
-        ),
-      ),
-    );
-  }
-
-  Widget _iconButton({
-    required IconData icon,
-    required String tooltip,
-    required bool active,
-    required VoidCallback onTap,
-  }) {
-    return Tooltip(
-      message: tooltip,
-      child: GestureDetector(
-        onTap: _isLoading ? null : onTap,
-        child: Container(
-          height: 52,
-          decoration: BoxDecoration(
-            color: active
-                ? AppColors.primary.withValues(alpha: 0.15)
-                : AppColors.surfaceVariant,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(
-              color: active
-                  ? AppColors.primary.withValues(alpha: 0.4)
-                  : AppColors.glassBorder,
-            ),
-          ),
-          child: Icon(icon,
-              color: active ? AppColors.primary : AppColors.textSecondary,
-              size: 20),
-        ),
-      ),
-    );
-  }
 }
 
 class _MembersSheet extends StatefulWidget {
