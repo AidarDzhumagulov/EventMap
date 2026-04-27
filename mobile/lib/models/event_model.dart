@@ -57,9 +57,9 @@ class EventModel {
         (json['lon'] as num).toDouble(),
       ),
       cityName: json['city_name'] as String,
-      startTime: DateTime.parse(json['start_time'] as String),
+      startTime: DateTime.parse(json['start_time'] as String).toLocal(),
       endTime: json['end_time'] != null
-          ? DateTime.parse(json['end_time'] as String)
+          ? DateTime.parse(json['end_time'] as String).toLocal()
           : null,
       coverUrl: json['cover_url'] as String?,
       locationAddress: json['location_address'] as String?,

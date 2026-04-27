@@ -240,7 +240,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
   Widget _avatarPlaceholder() {
     return Center(
       child: Text(
-        widget.user.username.substring(0, 1).toUpperCase(),
+        widget.user.username.isNotEmpty ? widget.user.username.substring(0, 1).toUpperCase() : '?',
         style: const TextStyle(
           color: AppColors.primary,
           fontSize: 40,

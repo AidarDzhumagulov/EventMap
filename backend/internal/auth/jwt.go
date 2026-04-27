@@ -8,33 +8,22 @@ import (
 	"github.com/google/uuid"
 )
 
-var secretKey = os.Getenv("JWT_SECRET")
-
-func GenerateAccessToken(UserID uuid.UUID) (string, error) {
-
-	expiresAt := time.Now().Add(24 * time.Hour).Unix()
-
+func GenerateAccessToken(userID uuid.UUID) (string, error) {
 	claims := jwt.MapClaims{
-		"user_id": UserID,
-		"exp":     expiresAt,
+		"user_id": userID,
+		"type":    "access",
+		"exp":     time.Now().Add(15 * time.Minute).Unix(),
 	}
-
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-
-	return token.SignedString([]byte(secretKey))
-
+	return token.SignedString([]byte(os.Getenv("JWT_SECRET")))
 }
 
-func GenerateRefreshToken(UserID uuid.UUID) (string, error) {
-
-	expiresAt := time.Now().Add(12 * time.Hour).Unix()
-
+func GenerateRefreshToken(userID uuid.UUID) (string, error) {
 	claims := jwt.MapClaims{
-		"user_id": UserID,
-		"exp":     expiresAt,
+		"user_id": userID,
+		"type":    "refresh",
+		"exp":     time.Now().Add(7 * 24 * time.Hour).Unix(),
 	}
-
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-
-	return token.SignedString([]byte(secretKey))
+	return token.SignedString([]byte(os.Getenv("JWT_SECRET")))
 }

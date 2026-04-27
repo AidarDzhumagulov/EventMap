@@ -6,6 +6,7 @@ import '../../../core/theme.dart';
 import '../../../models/event_model.dart';
 import '../../event/screens/event_detail_screen.dart';
 import '../../map/providers/events_provider.dart';
+import '../../map/repository/category_repository.dart' show categoriesProvider;
 
 const _dateFilterLabels = {
   DateFilter.all: 'Все',
@@ -13,13 +14,96 @@ const _dateFilterLabels = {
   DateFilter.thisWeek: 'Эта неделя',
 };
 
-class FeedScreen extends ConsumerWidget {
+class FeedScreen extends ConsumerStatefulWidget {
   const FeedScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final selectedCity = ref.watch(selectedCityProvider);
-    final eventsAsync = ref.watch(filteredEventsProvider(selectedCity));
+  ConsumerState<FeedScreen> createState() => _FeedScreenState();
+}
+
+class _FeedScreenState extends ConsumerState<FeedScreen> {
+  final _scrollController = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(_onScroll);
+  }
+
+  @override
+  void dispose() {
+    _scrollController.removeListener(_onScroll);
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _onScroll() {
+    if (_scrollController.position.pixels >=
+        _scrollController.position.maxScrollExtent - 200) {
+      ref.read(paginatedEventsProvider.notifier).loadMore();
+    }
+  }
+
+  List<EventModel> _applyFilters(
+    List<EventModel> events,
+    DateFilter dateFilter,
+    int? selectedTypeId,
+    Map<int, int> categoryTypeMap,
+  ) {
+    var filtered = events;
+
+    if (selectedTypeId != null) {
+      filtered = filtered.where((e) {
+        if (e.categoryId == null) return false;
+        return categoryTypeMap[e.categoryId] == selectedTypeId;
+      }).toList();
+    }
+
+    final now = DateTime.now();
+    switch (dateFilter) {
+      case DateFilter.today:
+        final startOfDay = DateTime(now.year, now.month, now.day);
+        final endOfDay = startOfDay.add(const Duration(days: 1));
+        filtered = filtered
+            .where((e) =>
+                e.startTime.isAfter(startOfDay) &&
+                e.startTime.isBefore(endOfDay))
+            .toList();
+      case DateFilter.thisWeek:
+        final endOfWeek = now.add(const Duration(days: 7));
+        filtered = filtered
+            .where((e) =>
+                e.startTime.isAfter(now) && e.startTime.isBefore(endOfWeek))
+            .toList();
+      case DateFilter.all:
+        break;
+    }
+
+    return filtered;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final feedState = ref.watch(paginatedEventsProvider);
+    final dateFilter = ref.watch(selectedDateFilterProvider);
+    final selectedTypeId = ref.watch(selectedCategoryTypeIdProvider);
+    final categoriesAsync = ref.watch(categoriesProvider);
+
+    final categoryTypeMap = <int, int>{};
+    categoriesAsync.whenData((types) {
+      for (final type in types) {
+        for (final cat in type.categories) {
+          categoryTypeMap[cat.id] = type.id;
+        }
+      }
+    });
+
+    final visibleEvents = _applyFilters(
+      feedState.events,
+      dateFilter,
+      selectedTypeId,
+      categoryTypeMap,
+    );
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -42,8 +126,7 @@ class FeedScreen extends ConsumerWidget {
                 scrollDirection: Axis.horizontal,
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 children: DateFilter.values.map((filter) {
-                  final isActive =
-                      ref.watch(selectedDateFilterProvider) == filter;
+                  final isActive = dateFilter == filter;
                   return Padding(
                     padding: const EdgeInsets.only(right: 8),
                     child: GestureDetector(
@@ -72,9 +155,8 @@ class FeedScreen extends ConsumerWidget {
                                 ? AppColors.background
                                 : AppColors.textSecondary,
                             fontSize: 13,
-                            fontWeight: isActive
-                                ? FontWeight.w600
-                                : FontWeight.w400,
+                            fontWeight:
+                                isActive ? FontWeight.w600 : FontWeight.w400,
                           ),
                         ),
                       ),
@@ -85,59 +167,82 @@ class FeedScreen extends ConsumerWidget {
             ),
             const SizedBox(height: 8),
             Expanded(
-              child: eventsAsync.when(
-                loading: () => const Center(
-                  child: CircularProgressIndicator(color: AppColors.primary),
-                ),
-                error: (_, __) => Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Text(
-                        'Не удалось загрузить события',
-                        style: TextStyle(color: AppColors.textSecondary),
-                      ),
-                      const SizedBox(height: 16),
-                      TextButton.icon(
-                        onPressed: () =>
-                            ref.invalidate(eventsProvider(selectedCity)),
-                        icon: const Icon(Icons.refresh_rounded,
-                            color: AppColors.primary),
-                        label: const Text('Повторить',
-                            style: TextStyle(color: AppColors.primary)),
-                      ),
-                    ],
-                  ),
-                ),
-                data: (events) => events.isEmpty
-                    ? const Center(
-                        child: Text(
-                          'Событий пока нет',
-                          style:
-                              TextStyle(color: AppColors.textSecondary),
-                        ),
-                      )
-                    : RefreshIndicator(
-                        color: AppColors.primary,
-                        onRefresh: () async =>
-                            ref.invalidate(eventsProvider(selectedCity)),
-                        child: ListView.separated(
-                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
-                          itemCount: events.length,
-                          separatorBuilder: (_, __) =>
-                              const SizedBox(height: 12),
-                          itemBuilder: (context, i) => GestureDetector(
-                            onTap: () => Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (_) =>
-                                    EventDetailScreen(event: events[i]),
+              child: feedState.isLoading
+                  ? const Center(
+                      child:
+                          CircularProgressIndicator(color: AppColors.primary),
+                    )
+                  : feedState.error != null && feedState.events.isEmpty
+                      ? Center(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Text(
+                                'Не удалось загрузить события',
+                                style:
+                                    TextStyle(color: AppColors.textSecondary),
                               ),
-                            ),
-                            child: _EventCard(event: events[i]),
+                              const SizedBox(height: 16),
+                              TextButton.icon(
+                                onPressed: () => ref
+                                    .read(paginatedEventsProvider.notifier)
+                                    .refresh(),
+                                icon: const Icon(Icons.refresh_rounded,
+                                    color: AppColors.primary),
+                                label: const Text('Повторить',
+                                    style:
+                                        TextStyle(color: AppColors.primary)),
+                              ),
+                            ],
                           ),
+                        )
+                      : RefreshIndicator(
+                          color: AppColors.primary,
+                          onRefresh: () => ref
+                              .read(paginatedEventsProvider.notifier)
+                              .refresh(),
+                          child: visibleEvents.isEmpty
+                              ? const Center(
+                                  child: Text(
+                                    'Событий пока нет',
+                                    style: TextStyle(
+                                        color: AppColors.textSecondary),
+                                  ),
+                                )
+                              : ListView.separated(
+                                  controller: _scrollController,
+                                  padding: const EdgeInsets.fromLTRB(
+                                      16, 0, 16, 100),
+                                  itemCount: visibleEvents.length +
+                                      (feedState.isLoadingMore ? 1 : 0),
+                                  separatorBuilder: (_, __) =>
+                                      const SizedBox(height: 12),
+                                  itemBuilder: (context, i) {
+                                    if (i == visibleEvents.length) {
+                                      return const Padding(
+                                        padding: EdgeInsets.symmetric(
+                                            vertical: 16),
+                                        child: Center(
+                                          child: CircularProgressIndicator(
+                                            color: AppColors.primary,
+                                            strokeWidth: 2,
+                                          ),
+                                        ),
+                                      );
+                                    }
+                                    return GestureDetector(
+                                      onTap: () => Navigator.of(context).push(
+                                        MaterialPageRoute(
+                                          builder: (_) => EventDetailScreen(
+                                              event: visibleEvents[i]),
+                                        ),
+                                      ),
+                                      child: _EventCard(
+                                          event: visibleEvents[i]),
+                                    );
+                                  },
+                                ),
                         ),
-                      ),
-              ),
             ),
           ],
         ),

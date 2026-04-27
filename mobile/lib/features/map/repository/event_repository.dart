@@ -9,12 +9,19 @@ class EventRepository {
 
   const EventRepository(this._dio);
 
-  Future<List<EventModel>> getEvents({String city = '', String search = ''}) async {
+  Future<List<EventModel>> getEvents({
+    String city = '',
+    String search = '',
+    int limit = 100,
+    int offset = 0,
+  }) async {
     final response = await _dio.get(
       '/events',
       queryParameters: {
         if (city.isNotEmpty) 'city': city,
         if (search.isNotEmpty) 'search': search,
+        'limit': limit,
+        'offset': offset,
       },
     );
     final data = response.data as List<dynamic>;

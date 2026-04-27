@@ -10,8 +10,6 @@ import (
 	"github.com/google/uuid"
 )
 
-var secretKey = os.Getenv("JWT_SECRET")
-
 type contextKey string
 
 const userIDKey contextKey = "user_id"
@@ -39,8 +37,9 @@ func AuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
 
 		tokenString := strings.TrimPrefix(authHeader, "Bearer ")
 
+		secret := []byte(os.Getenv("JWT_SECRET"))
 		token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
-			return []byte(secretKey), nil
+			return secret, nil
 		})
 
 		if err != nil || !token.Valid {

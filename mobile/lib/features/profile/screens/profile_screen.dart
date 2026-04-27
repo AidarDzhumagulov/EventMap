@@ -104,7 +104,7 @@ class ProfileScreen extends ConsumerWidget {
                             fit: BoxFit.cover,
                             errorBuilder: (_, __, ___) => Center(
                               child: Text(
-                                user.username.substring(0, 1).toUpperCase(),
+                                user.username.isNotEmpty ? user.username.substring(0, 1).toUpperCase() : '?',
                                 style: const TextStyle(
                                   color: AppColors.primary,
                                   fontSize: 40,
@@ -115,7 +115,7 @@ class ProfileScreen extends ConsumerWidget {
                           )
                         : Center(
                             child: Text(
-                              user.username.substring(0, 1).toUpperCase(),
+                              user.username.isNotEmpty ? user.username.substring(0, 1).toUpperCase() : '?',
                               style: const TextStyle(
                                 color: AppColors.primary,
                                 fontSize: 40,

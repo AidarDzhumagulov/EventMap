@@ -73,3 +73,101 @@ final filteredEventsProvider =
 });
 
 final selectedEventProvider = StateProvider<EventModel?>((ref) => null);
+
+// ─── Paginated feed ────────────────────────────────────────────────────────
+
+class PaginatedEventsState {
+  final List<EventModel> events;
+  final bool isLoading;
+  final bool isLoadingMore;
+  final bool hasMore;
+  final Object? error;
+
+  const PaginatedEventsState({
+    this.events = const [],
+    this.isLoading = true,
+    this.isLoadingMore = false,
+    this.hasMore = true,
+    this.error,
+  });
+
+  PaginatedEventsState withMore(List<EventModel> newPage, int pageSize) {
+    return PaginatedEventsState(
+      events: [...events, ...newPage],
+      isLoadingMore: false,
+      hasMore: newPage.length == pageSize,
+    );
+  }
+}
+
+class PaginatedEventsNotifier extends AutoDisposeNotifier<PaginatedEventsState> {
+  static const _pageSize = 30;
+  int _offset = 0;
+
+  @override
+  PaginatedEventsState build() {
+    final city = ref.watch(selectedCityProvider);
+    final search = ref.watch(searchQueryProvider);
+    _offset = 0;
+    _fetch(city: city, search: search, reset: true);
+    return const PaginatedEventsState(isLoading: true);
+  }
+
+  Future<void> _fetch({
+    required String city,
+    required String search,
+    bool reset = false,
+  }) async {
+    try {
+      final events = await ref.read(eventRepositoryProvider).getEvents(
+            city: city,
+            search: search,
+            limit: _pageSize,
+            offset: _offset,
+          );
+      _offset += events.length;
+      if (reset) {
+        state = PaginatedEventsState(
+          events: events,
+          isLoading: false,
+          hasMore: events.length == _pageSize,
+        );
+      } else {
+        state = state.withMore(events, _pageSize);
+      }
+    } catch (e) {
+      state = PaginatedEventsState(
+        events: reset ? const [] : state.events,
+        isLoading: false,
+        isLoadingMore: false,
+        error: e,
+      );
+    }
+  }
+
+  Future<void> loadMore() async {
+    if (state.isLoading || state.isLoadingMore || !state.hasMore) return;
+    state = PaginatedEventsState(
+      events: state.events,
+      isLoading: false,
+      isLoadingMore: true,
+      hasMore: state.hasMore,
+    );
+    final city = ref.read(selectedCityProvider);
+    final search = ref.read(searchQueryProvider);
+    await _fetch(city: city, search: search);
+  }
+
+  Future<void> refresh() async {
+    _offset = 0;
+    state = const PaginatedEventsState(isLoading: true);
+    final city = ref.read(selectedCityProvider);
+    final search = ref.read(searchQueryProvider);
+    await _fetch(city: city, search: search, reset: true);
+  }
+}
+
+final paginatedEventsProvider =
+    AutoDisposeNotifierProvider<PaginatedEventsNotifier, PaginatedEventsState>(
+  PaginatedEventsNotifier.new,
+);

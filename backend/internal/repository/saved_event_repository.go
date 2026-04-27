@@ -42,15 +42,13 @@ func (r *SavedEventRepository) IsSaved(eventID, userID uuid.UUID) (bool, error) 
 
 func (r *SavedEventRepository) GetSavedByUser(userID uuid.UUID) ([]models.Event, error) {
 	events := make([]models.Event, 0)
-	err := r.db.Select(&events, `
-		SELECT e.* FROM events e
+	query := eventSelect + `
 		JOIN saved_events s ON s.event_id = e.id
 		WHERE s.user_id = $1 AND e.deleted_at IS NULL
-		ORDER BY s.saved_at DESC`,
-		userID,
-	)
+		ORDER BY s.saved_at DESC`
+	err := r.db.Select(&events, query, userID)
 	if err != nil {
 		return nil, err
 	}
-	return events, nil
+	return computeStatuses(events), nil
 }

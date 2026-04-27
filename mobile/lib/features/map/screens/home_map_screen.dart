@@ -30,6 +30,7 @@ class _HomeMapScreenState extends ConsumerState<HomeMapScreen> {
   final TextEditingController _searchController = TextEditingController();
   int _selectedNavIndex = 0;
   Timer? _searchDebounce;
+  bool _isNavigating = false;
 
   @override
   void dispose() {
@@ -213,10 +214,12 @@ class _HomeMapScreenState extends ConsumerState<HomeMapScreen> {
                 ],
               ),
               child: FloatingActionButton.extended(
-                onPressed: () {
+                onPressed: () async {
+                  if (_isNavigating) return;
+                  _isNavigating = true;
                   final center = ref.read(mapCenterProvider);
                   final city = ref.read(selectedCityProvider);
-                  Navigator.of(context).push(
+                  await Navigator.of(context).push(
                     MaterialPageRoute(
                       builder: (_) => EventFormScreen(
                         initialLat: center.latitude,
@@ -225,6 +228,7 @@ class _HomeMapScreenState extends ConsumerState<HomeMapScreen> {
                       ),
                     ),
                   );
+                  _isNavigating = false;
                 },
                 backgroundColor: AppColors.primary,
                 foregroundColor: AppColors.background,
