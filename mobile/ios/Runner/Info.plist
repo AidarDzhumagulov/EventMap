@@ -68,5 +68,9 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>EventMap использует геолокацию чтобы показывать события рядом с тобой</string>
+	<key>NSLocationAlwaysUsageDescription</key>
+	<string>EventMap использует геолокацию чтобы показывать события рядом с тобой</string>
 </dict>
 </plist>

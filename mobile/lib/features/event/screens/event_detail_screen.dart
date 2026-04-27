@@ -291,8 +291,8 @@ class _EventDetailScreenState extends ConsumerState<EventDetailScreen> {
           _infoRow(Icons.location_city_rounded, 'Город', event.cityName),
           _infoRow(
             Icons.location_on_rounded,
-            'Координаты',
-            '${event.location.latitude.toStringAsFixed(5)}, ${event.location.longitude.toStringAsFixed(5)}',
+            'Адрес',
+            event.locationAddress ?? '${event.location.latitude.toStringAsFixed(5)}, ${event.location.longitude.toStringAsFixed(5)}',
           ),
           if (event.maxMembers != null)
             _membersRow(

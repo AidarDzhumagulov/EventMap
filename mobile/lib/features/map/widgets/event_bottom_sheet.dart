@@ -37,6 +37,16 @@ class EventBottomSheet extends ConsumerWidget {
               padding: EdgeInsets.zero,
               children: [
                 _buildHandle(),
+                if (selectedEvent.coverUrl != null)
+                  ClipRRect(
+                    child: Image.network(
+                      selectedEvent.coverUrl!,
+                      height: 180,
+                      width: double.infinity,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                    ),
+                  ),
                 _buildEventCard(context, selectedEvent, ref),
               ],
             ),

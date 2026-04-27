@@ -65,16 +65,33 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
       final data = response.data as Map<String, dynamic>;
       final addr = data['address'] as Map<String, dynamic>?;
       if (addr != null) {
-        final road = addr['road'] as String?;
+        final amenity     = addr['amenity']      as String?;
+        final building    = addr['building']     as String?;
+        final road        = addr['road']         as String?
+                         ?? addr['pedestrian']   as String?
+                         ?? addr['path']         as String?;
         final houseNumber = addr['house_number'] as String?;
-        final suburb = addr['suburb'] as String?;
-        if (road != null) {
-          _address = houseNumber != null ? '$road, $houseNumber' : road;
-        } else if (suburb != null) {
-          _address = suburb;
-        } else {
-          _address = data['display_name'] as String?;
+        final suburb      = addr['suburb']       as String?
+                         ?? addr['neighbourhood'] as String?
+                         ?? addr['quarter']      as String?;
+
+        final parts = <String>[];
+
+        if (amenity != null || building != null) {
+          parts.add(amenity ?? building!);
         }
+
+        if (road != null) {
+          parts.add(houseNumber != null ? '$road, $houseNumber' : road);
+        }
+
+        if (houseNumber == null && suburb != null) {
+          parts.add(suburb);
+        }
+
+        _address = parts.isNotEmpty
+            ? parts.join(', ')
+            : data['display_name'] as String?;
       }
     } catch (_) {
       _address = null;

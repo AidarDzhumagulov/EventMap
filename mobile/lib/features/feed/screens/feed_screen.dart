@@ -143,15 +143,28 @@ class _EventCard extends StatelessWidget {
         DateFormat('d MMM, HH:mm', 'ru').format(event.startTime);
 
     return Container(
-      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: AppColors.glassBorder),
       ),
+      clipBehavior: Clip.antiAlias,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if (event.coverUrl != null)
+            Image.network(
+              event.coverUrl!,
+              height: 160,
+              width: double.infinity,
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+            ),
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
           // Верхняя строка: статус + приватность
           Row(
             children: [
@@ -218,6 +231,9 @@ class _EventCard extends StatelessWidget {
                 ),
               ],
             ],
+          ),
+              ],
+            ),
           ),
         ],
       ),
