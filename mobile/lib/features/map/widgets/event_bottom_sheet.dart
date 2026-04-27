@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import '../../../core/network/dio_client.dart';
 import '../../../core/theme.dart';
 import '../../../models/event_model.dart';
 import '../../event/screens/event_detail_screen.dart';
 import '../../event/widgets/rsvp_buttons.dart';
+import '../../saved/screens/saved_screen.dart';
 import '../providers/events_provider.dart';
 
 class EventBottomSheet extends ConsumerWidget {
@@ -199,20 +201,26 @@ class EventBottomSheet extends ConsumerWidget {
               ),
           ],
         ),
-        // Закрыть
-        GestureDetector(
-          onTap: () => ref.read(selectedEventProvider.notifier).state = null,
-          child: Container(
-            width: 32,
-            height: 32,
-            decoration: BoxDecoration(
-              color: AppColors.glassBackground,
-              shape: BoxShape.circle,
-              border: Border.all(color: AppColors.glassBorder),
+        Row(
+          children: [
+            _SaveButton(eventId: event.id),
+            const SizedBox(width: 8),
+            // Закрыть
+            GestureDetector(
+              onTap: () => ref.read(selectedEventProvider.notifier).state = null,
+              child: Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: AppColors.glassBackground,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: AppColors.glassBorder),
+                ),
+                child: const Icon(Icons.close_rounded,
+                    color: AppColors.textSecondary, size: 16),
+              ),
             ),
-            child: const Icon(Icons.close_rounded,
-                color: AppColors.textSecondary, size: 16),
-          ),
+          ],
         ),
       ],
     );
@@ -310,4 +318,77 @@ class EventBottomSheet extends ConsumerWidget {
     );
   }
 
+}
+
+class _SaveButton extends ConsumerStatefulWidget {
+  final String eventId;
+  const _SaveButton({required this.eventId});
+
+  @override
+  ConsumerState<_SaveButton> createState() => _SaveButtonState();
+}
+
+class _SaveButtonState extends ConsumerState<_SaveButton> {
+  bool? _isSaved;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final dio = ref.read(dioClientProvider);
+      final response = await dio.get('/events/is-saved',
+          queryParameters: {'id': widget.eventId});
+      final saved = (response.data as Map<String, dynamic>)['saved'] as bool;
+      if (mounted) setState(() => _isSaved = saved);
+    } catch (_) {
+      if (mounted) setState(() => _isSaved = false);
+    }
+  }
+
+  Future<void> _toggle() async {
+    final current = _isSaved ?? false;
+    setState(() => _isSaved = !current);
+    try {
+      final dio = ref.read(dioClientProvider);
+      if (current) {
+        await dio.delete('/events/save', queryParameters: {'id': widget.eventId});
+      } else {
+        await dio.post('/events/save', queryParameters: {'id': widget.eventId});
+      }
+      ref.invalidate(savedEventsProvider);
+    } catch (_) {
+      if (mounted) setState(() => _isSaved = current);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: _isSaved == null ? null : _toggle,
+      child: Container(
+        width: 32,
+        height: 32,
+        decoration: BoxDecoration(
+          color: AppColors.glassBackground,
+          shape: BoxShape.circle,
+          border: Border.all(color: AppColors.glassBorder),
+        ),
+        child: _isSaved == null
+            ? const Padding(
+                padding: EdgeInsets.all(7),
+                child: CircularProgressIndicator(
+                    strokeWidth: 1.5, color: AppColors.primary),
+              )
+            : Icon(
+                _isSaved! ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+                color: _isSaved! ? Colors.redAccent : AppColors.textSecondary,
+                size: 16,
+              ),
+      ),
+    );
+  }
 }

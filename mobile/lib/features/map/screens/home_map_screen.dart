@@ -223,7 +223,7 @@ class _HomeMapScreenState extends ConsumerState<HomeMapScreen> {
         child: Row(
           children: [
             const Icon(Icons.search_rounded,
-                color: AppColors.textHint, size: 20),
+                color: AppColors.textSecondary, size: 20),
             const SizedBox(width: 8),
             Expanded(
               child: TextField(
@@ -233,7 +233,7 @@ class _HomeMapScreenState extends ConsumerState<HomeMapScreen> {
                 decoration: const InputDecoration(
                   hintText: 'Поиск событий...',
                   hintStyle:
-                      TextStyle(color: AppColors.textHint, fontSize: 14),
+                      TextStyle(color: AppColors.textSecondary, fontSize: 14),
                   border: InputBorder.none,
                   isDense: true,
                   contentPadding: EdgeInsets.zero,
@@ -531,45 +531,64 @@ class _HomeMapScreenState extends ConsumerState<HomeMapScreen> {
 
     return SizedBox(
       height: 40,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        itemCount: chips.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 8),
-        itemBuilder: (context, index) {
-          final (id, label, emoji) = chips[index];
-          final isActive = id == selectedTypeId;
-          return GestureDetector(
-            onTap: () {
-              ref.read(selectedCategoryTypeIdProvider.notifier).state = id;
-            },
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 150),
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-              decoration: BoxDecoration(
-                color:
-                    isActive ? AppColors.primary : AppColors.surfaceVariant,
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(
-                  color:
-                      isActive ? AppColors.primary : AppColors.glassBorder,
+      child: Stack(
+        children: [
+          ListView.separated(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            itemCount: chips.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 8),
+            itemBuilder: (context, index) {
+              final (id, label, emoji) = chips[index];
+              final isActive = id == selectedTypeId;
+              return GestureDetector(
+                onTap: () {
+                  ref.read(selectedCategoryTypeIdProvider.notifier).state = id;
+                },
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 150),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: isActive ? AppColors.primary : AppColors.surfaceVariant,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: isActive ? AppColors.primary : AppColors.glassBorder,
+                    ),
+                  ),
+                  child: Text(
+                    '$emoji $label',
+                    style: TextStyle(
+                      color: isActive ? AppColors.background : AppColors.textSecondary,
+                      fontSize: 13,
+                      fontWeight: isActive ? FontWeight.w600 : FontWeight.w400,
+                    ),
+                  ),
                 ),
-              ),
-              child: Text(
-                '$emoji $label',
-                style: TextStyle(
-                  color: isActive
-                      ? AppColors.background
-                      : AppColors.textSecondary,
-                  fontSize: 13,
-                  fontWeight:
-                      isActive ? FontWeight.w600 : FontWeight.w400,
+              );
+            },
+          ),
+          // Fade hint: намекает что список скроллируется вправо
+          Positioned(
+            right: 0,
+            top: 0,
+            bottom: 0,
+            child: IgnorePointer(
+              child: Container(
+                width: 40,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.centerLeft,
+                    end: Alignment.centerRight,
+                    colors: [
+                      AppColors.background.withValues(alpha: 0),
+                      AppColors.background.withValues(alpha: 0.85),
+                    ],
+                  ),
                 ),
               ),
             ),
-          );
-        },
+          ),
+        ],
       ),
     );
   }
@@ -617,23 +636,40 @@ class _HomeMapScreenState extends ConsumerState<HomeMapScreen> {
   }
 
   Widget _buildBottomNavBar() {
-    return Container(
-      decoration: const BoxDecoration(
-        color: AppColors.surface,
-        border: Border(top: BorderSide(color: AppColors.glassBorder, width: 1)),
-      ),
-      child: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              _navItem(0, Icons.map_rounded, 'Карта'),
-              _navItem(1, Icons.explore_rounded, 'Лента'),
-              _createButton(),
-              _navItem(2, Icons.favorite_border_rounded, 'Сохранённые'),
-              _navItem(3, Icons.person_outline_rounded, 'Профиль'),
-            ],
+    return ClipRRect(
+      borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+      child: Container(
+        decoration: const BoxDecoration(
+          color: Color(0xFF1A1C29),
+          border: Border(
+            top: BorderSide(color: AppColors.glassBorder, width: 1),
+          ),
+        ),
+        child: SafeArea(
+          top: false,
+          child: SizedBox(
+            height: 64,
+            child: Row(
+              children: [
+                Expanded(child: Align(
+                  alignment: const Alignment(0, 0.5),
+                  child: _navItem(0, Icons.map_rounded, 'Карта'),
+                )),
+                Expanded(child: Align(
+                  alignment: const Alignment(0, 0.5),
+                  child: _navItem(1, Icons.explore_rounded, 'Лента'),
+                )),
+                _createButton(),
+                Expanded(child: Align(
+                  alignment: const Alignment(0, 0.5),
+                  child: _navItem(2, Icons.favorite_border_rounded, 'Избранное'),
+                )),
+                Expanded(child: Align(
+                  alignment: const Alignment(0, 0.5),
+                  child: _navItem(3, Icons.person_outline_rounded, 'Профиль'),
+                )),
+              ],
+            ),
           ),
         ),
       ),
@@ -659,17 +695,17 @@ class _HomeMapScreenState extends ConsumerState<HomeMapScreen> {
         _isNavigating = false;
       },
       child: Container(
-        width: 52,
-        height: 52,
+        width: 54,
+        height: 54,
         decoration: BoxDecoration(
           color: AppColors.primary,
           shape: BoxShape.circle,
           boxShadow: [
             BoxShadow(
-              color: AppColors.primary.withValues(alpha: 0.4),
+              color: AppColors.primary.withValues(alpha: 0.45),
               blurRadius: 16,
-              spreadRadius: 2,
-              offset: const Offset(0, -2),
+              spreadRadius: 0,
+              offset: const Offset(0, 4),
             ),
           ],
         ),
@@ -690,7 +726,7 @@ class _HomeMapScreenState extends ConsumerState<HomeMapScreen> {
       },
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
         decoration: BoxDecoration(
           color: isSelected
               ? AppColors.primary.withOpacity(0.12)
@@ -702,18 +738,20 @@ class _HomeMapScreenState extends ConsumerState<HomeMapScreen> {
           children: [
             Icon(
               icon,
-              color: isSelected ? AppColors.primary : AppColors.textHint,
-              size: 24,
+              color: isSelected ? AppColors.primary : AppColors.textSecondary,
+              size: 22,
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 3),
             Text(
               label,
               style: TextStyle(
-                color: isSelected ? AppColors.primary : AppColors.textHint,
-                fontSize: 11,
+                color: isSelected ? AppColors.primary : AppColors.textSecondary,
+                fontSize: 10,
                 fontWeight:
                     isSelected ? FontWeight.w600 : FontWeight.w400,
               ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
           ],
         ),

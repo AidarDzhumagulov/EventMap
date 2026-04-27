@@ -10,7 +10,10 @@ import '../../../models/event_model.dart';
 import '../../map/providers/events_provider.dart';
 import '../../profile/repository/user_repository.dart';
 import '../../saved/screens/saved_screen.dart';
+import 'package:share_plus/share_plus.dart';
+
 import '../widgets/rsvp_buttons.dart';
+import '../widgets/share_card.dart';
 import 'event_form_screen.dart';
 
 class EventDetailScreen extends ConsumerStatefulWidget {
@@ -146,6 +149,24 @@ class _EventDetailScreenState extends ConsumerState<EventDetailScreen> {
           onPressed: () => Navigator.of(context).pop(),
         ),
         actions: [
+          Builder(
+            builder: (btnCtx) => IconButton(
+              icon: const Icon(Icons.ios_share_rounded,
+                  color: AppColors.textSecondary, size: 20),
+              onPressed: () {
+                final box = btnCtx.findRenderObject() as RenderBox?;
+                final pos = box?.localToGlobal(Offset.zero);
+                final size = box?.size;
+                shareEvent(
+                  context,
+                  event,
+                  sharePositionOrigin: (pos != null && size != null)
+                      ? pos & size
+                      : null,
+                );
+              },
+            ),
+          ),
           if (isCreator) ...[
             IconButton(
               icon: const Icon(Icons.edit_rounded,
@@ -277,6 +298,8 @@ class _EventDetailScreenState extends ConsumerState<EventDetailScreen> {
             isFull: event.isFull,
             onStatusChanged: _onRsvpChanged,
           ),
+          const SizedBox(height: 12),
+          _InviteButton(event: event),
               ],
             ),
           ),
@@ -515,6 +538,62 @@ class _MembersSheetState extends State<_MembersSheet> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ─── Кнопка «Позвать друга» ────────────────────────────────────────────────
+
+class _InviteButton extends StatelessWidget {
+  final EventModel event;
+  const _InviteButton({required this.event});
+
+  @override
+  Widget build(BuildContext context) {
+    return Builder(
+      builder: (btnCtx) => GestureDetector(
+        onTap: () {
+          final dateStr =
+              DateFormat('d MMMM, HH:mm', 'ru').format(event.startTime);
+          final text = 'Привет! Иду на «${event.title}» ${event.categoryEmoji}\n'
+              '📅 $dateStr\n'
+              '📍 ${event.cityName}\n\n'
+              'Присоединяйся → eventmap://event/${event.id}';
+          final box = btnCtx.findRenderObject() as RenderBox?;
+          final pos = box?.localToGlobal(Offset.zero);
+          final size = box?.size;
+          Share.share(
+            text,
+            sharePositionOrigin:
+                (pos != null && size != null) ? pos & size : null,
+          );
+        },
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          decoration: BoxDecoration(
+            color: AppColors.surfaceVariant,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: AppColors.glassBorder),
+          ),
+          child: const Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.person_add_rounded,
+                  color: AppColors.primary, size: 18),
+              SizedBox(width: 8),
+              Text(
+                'Позвать друга',
+                style: TextStyle(
+                  color: AppColors.primary,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 15,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

@@ -40,6 +40,11 @@ dependencies:
   # Image picker
   image_picker: ^1.1.2
 
+  # Share & Deep Links
+  screenshot: ^3.0.0
+  share_plus: ^10.0.2
+  app_links: ^6.3.2
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

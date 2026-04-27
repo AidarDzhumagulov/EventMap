@@ -74,6 +74,10 @@ final filteredEventsProvider =
 
 final selectedEventProvider = StateProvider<EventModel?>((ref) => null);
 
+final eventByIdProvider = FutureProvider.family<EventModel, String>((ref, id) {
+  return ref.read(eventRepositoryProvider).getEvent(id);
+});
+
 // ─── Paginated feed ────────────────────────────────────────────────────────
 
 class PaginatedEventsState {

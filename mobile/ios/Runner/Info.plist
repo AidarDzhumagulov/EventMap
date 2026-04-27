@@ -68,6 +68,17 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>eventmap</string>
+			</array>
+			<key>CFBundleURLName</key>
+			<string>com.eventmap.event_map</string>
+		</dict>
+	</array>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>EventMap использует геолокацию чтобы показывать события рядом с тобой</string>
 	<key>NSLocationAlwaysUsageDescription</key>

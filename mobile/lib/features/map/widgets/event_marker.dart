@@ -16,8 +16,20 @@ class EventMarker extends StatelessWidget {
   });
 
   Color get _markerColor {
-    if (event.isPrivate) return const Color(0xFF6B21A8); // фиолетовый для секретных
+    if (event.isPrivate) return const Color(0xFF6B21A8);
     if (event.status == EventStatus.ongoing) return AppColors.success;
+    return _colorForAlias(event.categoryAlias ?? '');
+  }
+
+  static Color _colorForAlias(String alias) {
+    const sport = {'football', 'running', 'skating', 'yoga', 'cycling', 'hiking'};
+    const entertainment = {'party', 'concert', 'cinema', 'standup', 'club'};
+    const social = {'bar', 'dinner', 'brunch', 'picnic', 'camping'};
+    const business = {'lecture', 'workshop', 'meetup', 'it', 'business', 'startup'};
+    if (sport.contains(alias)) return const Color(0xFF00B4D8);
+    if (entertainment.contains(alias)) return const Color(0xFFFF6B6B);
+    if (social.contains(alias)) return const Color(0xFFFFB347);
+    if (business.contains(alias)) return const Color(0xFF7C6AF2);
     return AppColors.primary;
   }
 

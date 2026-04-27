@@ -25,6 +25,7 @@ class EventModel {
   final int? categoryId;
   final String category;
   final String categoryEmoji;
+  final String? categoryAlias;
   final String? inviteCode;
 
   const EventModel({
@@ -46,6 +47,7 @@ class EventModel {
     this.categoryId,
     required this.category,
     required this.categoryEmoji,
+    this.categoryAlias,
     this.inviteCode,
   });
 
@@ -75,6 +77,7 @@ class EventModel {
       membersCount: (json['members_count'] as int?) ?? 0,
       category: json['category_name'] as String? ?? '',
       categoryEmoji: categoryEmojiMap[json['category_alias'] as String?] ?? '📍',
+      categoryAlias: json['category_alias'] as String?,
       inviteCode: json['invite_code'] as String?,
     );
   }
@@ -110,6 +113,7 @@ class EventModel {
       categoryId: categoryId,
       category: category,
       categoryEmoji: categoryEmoji,
+      categoryAlias: categoryAlias,
       inviteCode: inviteCode,
     );
   }
