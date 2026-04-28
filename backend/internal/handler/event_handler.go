@@ -94,6 +94,47 @@ func (h *EventHandler) GetEvents(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(events)
 }
 
+// GET /events/feed?city=Бишкек&limit=40
+// Стопка событий для свайп-механики. Анти-повтор — события, с которыми
+// юзер уже взаимодействовал (лайк/RSVP/скип), не возвращаются.
+func (h *EventHandler) GetFeed(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Разрешен только GET метод", http.StatusMethodNotAllowed)
+		return
+	}
+
+	userID, ok := middleware.GetUserID(r)
+	if !ok {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	city := r.URL.Query().Get("city")
+	if city == "" {
+		http.Error(w, "city обязателен", http.StatusBadRequest)
+		return
+	}
+
+	limit := 40
+	if v, err := strconv.Atoi(r.URL.Query().Get("limit")); err == nil && v > 0 {
+		if v > 100 {
+			v = 100
+		}
+		limit = v
+	}
+
+	events, err := h.eventRepo.GetFeed(userID, city, limit)
+	if err != nil {
+		slog.Error("GetFeed: db error", "err", err, "user_id", userID, "city", city)
+		http.Error(w, "Ошибка получения ленты", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(events)
+}
+
 func (h *EventHandler) GetMyEvents(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "Разрешен только GET метод", http.StatusMethodNotAllowed)

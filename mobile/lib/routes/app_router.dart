@@ -9,6 +9,7 @@ import '../features/auth/screens/login_screen.dart';
 import '../features/auth/screens/register_screen.dart';
 import '../features/auth/screens/splash_screen.dart';
 import '../features/event/screens/event_detail_screen.dart';
+import '../features/event/screens/swipe_screen.dart';
 import '../features/map/providers/events_provider.dart';
 import '../features/map/screens/home_map_screen.dart';
 
@@ -18,6 +19,7 @@ class AppRoutes {
   static const register = '/register';
   static const homeMap = '/map';
   static const event = '/event';
+  static const swipe = '/swipe';
 }
 
 // Мост между Riverpod и GoRouter для реактивного редиректа
@@ -72,6 +74,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           final id = state.pathParameters['id']!;
           return _EventLoadScreen(eventId: id);
         },
+      ),
+      GoRoute(
+        path: AppRoutes.swipe,
+        builder: (context, state) => const SwipeScreen(),
       ),
     ],
     errorBuilder: (context, state) => const LoginScreen(),

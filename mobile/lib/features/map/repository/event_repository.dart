@@ -36,6 +36,27 @@ class EventRepository {
     return EventModel.fromJson(response.data as Map<String, dynamic>);
   }
 
+  /// Стопка событий для свайп-ленты. Бэк фильтрует анти-повтор —
+  /// события, с которыми юзер уже взаимодействовал, не возвращаются.
+  Future<List<EventModel>> getFeed({
+    required String city,
+    int limit = 40,
+  }) async {
+    final response = await _dio.get(
+      '/events/feed',
+      queryParameters: {'city': city, 'limit': limit},
+    );
+    final data = response.data as List<dynamic>;
+    return data
+        .map((e) => EventModel.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  /// Записывает скип события — чтобы оно больше не попадалось в свайп-ленте.
+  Future<void> markSkipped(String eventId) async {
+    await _dio.post('/events/skip', queryParameters: {'id': eventId});
+  }
+
   Future<String> uploadCover(String filePath) async {
     final formData = FormData.fromMap({
       'file': await MultipartFile.fromFile(filePath),

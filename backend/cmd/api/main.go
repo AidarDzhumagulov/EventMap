@@ -76,10 +76,15 @@ func main() {
 	http.HandleFunc("/events", auth(eventHandler.GetEvents))
 	http.HandleFunc("/events/create", auth(eventHandler.CreateEvent))
 	http.HandleFunc("/events/detail", auth(eventHandler.GetEvent))
+	http.HandleFunc("/events/feed", auth(eventHandler.GetFeed))
 	http.HandleFunc("/events/my", auth(eventHandler.GetMyEvents))
 	http.HandleFunc("/events/nearby", auth(eventHandler.GetNearby))
 	http.HandleFunc("/events/update", auth(eventHandler.UpdateEvent))
 	http.HandleFunc("/events/delete", auth(eventHandler.DeleteEvent))
+
+	swipeRepo := repository.NewEventSwipeRepository(db)
+	swipeHandler := handler.NewEventSwipeHandler(swipeRepo)
+	http.HandleFunc("/events/skip", auth(swipeHandler.Skip))
 
 	memberRepo := repository.NewEventMemberRepository(db)
 	memberHandler := handler.NewEventMemberHandler(memberRepo, eventRepo)

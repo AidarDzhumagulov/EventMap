@@ -173,6 +173,47 @@ func (r *EventRepository) GetByID(id uuid.UUID) (models.Event, error) {
 	return computeStatus(event), nil
 }
 
+// GetFeed — стопка событий для свайп-ленты (Tinder-механика).
+// Фильтры:
+//  1. город совпадает;
+//  2. событие ещё не закончилось;
+//  3. публичное (приватные не должны утекать в общую ленту);
+//  4. юзер ещё не взаимодействовал — нет в saved_events / event_members / event_swipes;
+//  5. не он сам создатель.
+//
+// Сортировка ORDER BY RANDOM() для разнообразия. На больших таблицах
+// можно будет заменить на TABLESAMPLE — пока MVP, города < 10k событий.
+func (r *EventRepository) GetFeed(userID uuid.UUID, cityName string, limit int) ([]models.Event, error) {
+	events := make([]models.Event, 0)
+	query := eventSelect + `
+		WHERE e.deleted_at IS NULL
+		  AND e.is_private = false
+		  AND e.city_name = $1
+		  AND e.created_by <> $2
+		  AND (e.end_time IS NULL OR e.end_time >= NOW())
+		  AND e.start_time >= NOW() - INTERVAL '6 hours'
+		  AND NOT EXISTS (
+		      SELECT 1 FROM saved_events s
+		      WHERE s.event_id = e.id AND s.user_id = $2
+		  )
+		  AND NOT EXISTS (
+		      SELECT 1 FROM event_members m
+		      WHERE m.event_id = e.id AND m.user_id = $2
+		  )
+		  AND NOT EXISTS (
+		      SELECT 1 FROM event_swipes sw
+		      WHERE sw.event_id = e.id AND sw.user_id = $2
+		  )
+		ORDER BY RANDOM()
+		LIMIT $3`
+
+	err := r.db.Select(&events, query, cityName, userID, limit)
+	if err != nil {
+		return nil, err
+	}
+	return computeStatuses(events), nil
+}
+
 func (r *EventRepository) Update(id uuid.UUID, req models.UpdateEventRequest, userID uuid.UUID) (models.Event, error) {
 	query := `
 		UPDATE events SET

@@ -24,33 +24,48 @@ class SwipeNotifier
   Future<void> _load() async {
     try {
       final city = ref.read(selectedCityProvider);
-      final events = await ref
-          .read(eventRepositoryProvider)
-          .getEvents(city: city, limit: 40);
-      final shuffled = [...events]..shuffle();
-      state = AsyncValue.data(shuffled);
+      final events =
+          await ref.read(eventRepositoryProvider).getFeed(city: city);
+      state = AsyncValue.data(events);
     } catch (e, st) {
       state = AsyncValue.error(e, st);
     }
   }
 
-  void skip() {
+  EventModel? _topCard() {
+    EventModel? event;
+    state.whenData((list) {
+      if (list.isNotEmpty) event = list.first;
+    });
+    return event;
+  }
+
+  void _popTop() {
     state.whenData((list) {
       if (list.isNotEmpty) state = AsyncValue.data(list.sublist(1));
     });
   }
 
-  Future<void> save() async {
-    EventModel? event;
-    state.whenData((list) {
-      if (list.isNotEmpty) event = list.first;
-    });
+  Future<void> skip() async {
+    final event = _topCard();
     if (event == null) return;
-    skip();
+    _popTop();
+    try {
+      await ref.read(eventRepositoryProvider).markSkipped(event.id);
+    } catch (_) {
+      // Сетевая ошибка — UX не блокируем, событие всё равно ушло из стопки.
+      // На бэке оно потом снова появится, но это лучше чем зависший экран.
+    }
+  }
+
+  Future<void> save() async {
+    final event = _topCard();
+    if (event == null) return;
+    _popTop();
     try {
       await ref.read(dioClientProvider).post(
         '/events/save',
-        queryParameters: {'id': event!.id},
+        queryParameters: {'id': event.id},
       );
     } catch (_) {}
   }
