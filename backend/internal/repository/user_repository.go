@@ -3,10 +3,19 @@ package repository
 import (
 	"context"
 	"event-map/internal/models"
+	"fmt"
 
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 )
+
+// existsByFields — whitelist полей, разрешённых для поиска.
+// Защита от опечатки в коде и от случайного SQL-injection если кто-то
+// проинтегрирует юзерский ввод напрямую.
+var existsByFields = map[string]bool{
+	"email":    true,
+	"username": true,
+}
 
 type UserRepository struct {
 	db *sqlx.DB
@@ -51,34 +60,41 @@ func (r *UserRepository) GetUserByEmail(ctx context.Context, email string) (mode
 	return user, nil
 }
 
-func (r *UserRepository) IsExist(ctx context.Context, email string) bool {
+// existsBy — общий хелпер. excludeID == nil → просто проверка существования;
+// иначе → "существует у кого-то кроме excludeID" (для проверки уникальности
+// при апдейте, чтобы юзер мог сохранить свой же username).
+//
+// Field берётся из whitelist'а — защита от опечатки и от попадания юзерского
+// ввода в имя колонки.
+func (r *UserRepository) existsBy(ctx context.Context, field, value string, excludeID *uuid.UUID) bool {
+	if !existsByFields[field] {
+		return false
+	}
+	query := fmt.Sprintf("SELECT EXISTS(SELECT 1 FROM users WHERE %s = $1", field)
+	args := []any{value}
+	if excludeID != nil {
+		query += " AND id != $2"
+		args = append(args, *excludeID)
+	}
+	query += ")"
+
 	var exists bool
-	err := r.db.GetContext(ctx, &exists, "SELECT EXISTS(SELECT 1 FROM users WHERE email = $1)", email)
-	if err != nil {
+	if err := r.db.GetContext(ctx, &exists, query, args...); err != nil {
 		return false
 	}
 	return exists
+}
+
+func (r *UserRepository) IsExist(ctx context.Context, email string) bool {
+	return r.existsBy(ctx, "email", email, nil)
 }
 
 func (r *UserRepository) IsUsernameExist(ctx context.Context, username string) bool {
-	var exists bool
-	err := r.db.GetContext(ctx, &exists, "SELECT EXISTS(SELECT 1 FROM users WHERE username = $1)", username)
-	if err != nil {
-		return false
-	}
-	return exists
+	return r.existsBy(ctx, "username", username, nil)
 }
 
 func (r *UserRepository) IsUsernameTakenByOther(ctx context.Context, username string, userID uuid.UUID) bool {
-	var exists bool
-	err := r.db.GetContext(ctx, &exists,
-		"SELECT EXISTS(SELECT 1 FROM users WHERE username = $1 AND id != $2)",
-		username, userID,
-	)
-	if err != nil {
-		return false
-	}
-	return exists
+	return r.existsBy(ctx, "username", username, &userID)
 }
 
 func (r *UserRepository) Update(ctx context.Context, id uuid.UUID, username string, avatarURL *string) (models.User, error) {

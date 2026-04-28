@@ -7,6 +7,7 @@ import (
 	"errors"
 	"event-map/internal/models"
 	"math/big"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -22,6 +23,18 @@ func generateInviteCode() string {
 		code[i] = inviteCodeChars[n.Int64()]
 	}
 	return string(code)
+}
+
+// escapeLikePattern экранирует специальные символы LIKE/ILIKE.
+// Без этого юзер может прислать "100%" и получить "найти всё что содержит 100"
+// вместо буквального поиска "100%". Также защищает от ReDoS-подобных паттернов.
+func escapeLikePattern(s string) string {
+	r := strings.NewReplacer(
+		`\`, `\\`,
+		`%`, `\%`,
+		`_`, `\_`,
+	)
+	return r.Replace(s)
 }
 
 var ErrNotFound = errors.New("not found")
@@ -147,15 +160,18 @@ func (r *EventRepository) GetNearby(ctx context.Context, lat, lon, radiusMeters 
 func (r *EventRepository) GetAll(ctx context.Context, cityName string, status string, search string, limit int, offset int) ([]models.Event, error) {
 	var events []models.Event
 
+	// Экранируем LIKE-метасимволы — иначе "100%" в search означает "что угодно".
+	safeSearch := escapeLikePattern(search)
+
 	query := eventSelect + `
 		WHERE e.deleted_at IS NULL
 		  AND ($1 = '' OR e.city_name = $1)
 		  AND ($2 = '' OR e.status = $2)
-		  AND ($3 = '' OR e.title ILIKE '%' || $3 || '%')
+		  AND ($3 = '' OR e.title ILIKE '%' || $3 || '%' ESCAPE '\')
 		ORDER BY e.start_time ASC
 		LIMIT $4 OFFSET $5`
 
-	err := r.db.SelectContext(ctx, &events, query, cityName, status, search, limit, offset)
+	err := r.db.SelectContext(ctx, &events, query, cityName, status, safeSearch, limit, offset)
 	if err != nil {
 		return nil, err
 	}

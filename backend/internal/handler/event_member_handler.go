@@ -134,7 +134,7 @@ func (h *EventMemberHandler) JoinByCode(w http.ResponseWriter, r *http.Request) 
 	}
 
 	code := r.URL.Query().Get("code")
-	if len(code) == 0 {
+	if code == "" {
 		http.Error(w, "Укажите код приглашения", http.StatusBadRequest)
 		return
 	}

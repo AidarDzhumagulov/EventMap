@@ -29,26 +29,26 @@ type LoginUser struct {
 }
 
 type Event struct {
-	ID             uuid.UUID  `json:"id" db:"id"`
-	Title          string     `json:"title" db:"title"`
-	Description    *string    `json:"description" db:"description"`
-	CoverURL       *string    `json:"cover_url" db:"cover_url"`
-	Lat            float64    `json:"lat" db:"lat"`
-	Lon            float64    `json:"lon" db:"lon"`
-	CityName       string     `json:"city_name" db:"city_name"`
-	StartTime      time.Time  `json:"start_time" db:"start_time"`
-	EndTime        *time.Time `json:"end_time" db:"end_time"`
-	IsPrivate      bool       `json:"is_private" db:"is_private"`
-	Status         string     `json:"status" db:"status"`
-	MaxMembers     *int       `json:"max_members" db:"max_members"`
-	MembersCount   int        `json:"members_count" db:"members_count"`
-	CategoryID     *int       `json:"category_id" db:"category_id"`
-	OrganizationID *uuid.UUID `json:"organization_id" db:"organization_id"`
-	LocationID     *uuid.UUID `json:"location_id" db:"location_id"`
-	CreatedBy      uuid.UUID  `json:"created_by" db:"created_by"`
-	CreatedAt      time.Time  `json:"created_at" db:"created_at"`
-	UpdatedAt      *time.Time `json:"updated_at" db:"updated_at"`
-	UpdatedBy      *uuid.UUID `json:"updated_by" db:"updated_by"`
+	ID              uuid.UUID  `json:"id" db:"id"`
+	Title           string     `json:"title" db:"title"`
+	Description     *string    `json:"description" db:"description"`
+	CoverURL        *string    `json:"cover_url" db:"cover_url"`
+	Lat             float64    `json:"lat" db:"lat"`
+	Lon             float64    `json:"lon" db:"lon"`
+	CityName        string     `json:"city_name" db:"city_name"`
+	StartTime       time.Time  `json:"start_time" db:"start_time"`
+	EndTime         *time.Time `json:"end_time" db:"end_time"`
+	IsPrivate       bool       `json:"is_private" db:"is_private"`
+	Status          string     `json:"status" db:"status"`
+	MaxMembers      *int       `json:"max_members" db:"max_members"`
+	MembersCount    int        `json:"members_count" db:"members_count"`
+	CategoryID      *int       `json:"category_id" db:"category_id"`
+	OrganizationID  *uuid.UUID `json:"organization_id" db:"organization_id"`
+	LocationID      *uuid.UUID `json:"location_id" db:"location_id"`
+	CreatedBy       uuid.UUID  `json:"created_by" db:"created_by"`
+	CreatedAt       time.Time  `json:"created_at" db:"created_at"`
+	UpdatedAt       *time.Time `json:"updated_at" db:"updated_at"`
+	UpdatedBy       *uuid.UUID `json:"updated_by" db:"updated_by"`
 	DeletedAt       *time.Time `json:"-" db:"deleted_at"`
 	DeletedBy       *uuid.UUID `json:"-" db:"deleted_by"`
 	LocationAddress *string    `json:"location_address" db:"location_address"`
@@ -58,18 +58,18 @@ type Event struct {
 }
 
 type CreateEventRequest struct {
-	Title          string     `json:"title"`
-	Description    *string    `json:"description"`
-	CoverURL       *string    `json:"cover_url"`
-	Lat            float64    `json:"lat"`
-	Lon            float64    `json:"lon"`
-	CityName       string     `json:"city_name"`
-	StartTime      time.Time  `json:"start_time"`
-	EndTime        *time.Time `json:"end_time"`
-	IsPrivate      bool       `json:"is_private"`
-	MaxMembers     *int       `json:"max_members"`
-	CategoryID     *int       `json:"category_id"`
-	LocationID     *uuid.UUID `json:"location_id"`
+	Title       string     `json:"title"`
+	Description *string    `json:"description"`
+	CoverURL    *string    `json:"cover_url"`
+	Lat         float64    `json:"lat"`
+	Lon         float64    `json:"lon"`
+	CityName    string     `json:"city_name"`
+	StartTime   time.Time  `json:"start_time"`
+	EndTime     *time.Time `json:"end_time"`
+	IsPrivate   bool       `json:"is_private"`
+	MaxMembers  *int       `json:"max_members"`
+	CategoryID  *int       `json:"category_id"`
+	LocationID  *uuid.UUID `json:"location_id"`
 }
 
 type UpdateEventRequest struct {
@@ -140,13 +140,13 @@ type CreateLocationRequest struct {
 }
 
 type Organization struct {
-	ID          uuid.UUID  `json:"id" db:"id"`
-	Name        string     `json:"name" db:"name"`
-	Description *string    `json:"description" db:"description"`
-	IsVerified  bool       `json:"is_verified" db:"is_verified"`
-	BillingInfo *string    `json:"billing_info,omitempty" db:"billing_info"`
-	CreatedAt   time.Time  `json:"created_at" db:"created_at"`
-	CreatedBy   uuid.UUID  `json:"created_by" db:"created_by"`
+	ID          uuid.UUID `json:"id" db:"id"`
+	Name        string    `json:"name" db:"name"`
+	Description *string   `json:"description" db:"description"`
+	IsVerified  bool      `json:"is_verified" db:"is_verified"`
+	BillingInfo *string   `json:"billing_info,omitempty" db:"billing_info"`
+	CreatedAt   time.Time `json:"created_at" db:"created_at"`
+	CreatedBy   uuid.UUID `json:"created_by" db:"created_by"`
 }
 
 type CreateOrganizationRequest struct {
@@ -167,11 +167,11 @@ type BusinessMember struct {
 }
 
 type BusinessMemberUser struct {
-	UserID         uuid.UUID `json:"user_id" db:"user_id"`
-	Username       string    `json:"username" db:"username"`
-	AvatarURL      *string   `json:"avatar_url" db:"avatar_url"`
-	Role           string    `json:"role" db:"role"`
-	JoinedAt       time.Time `json:"joined_at" db:"joined_at"`
+	UserID    uuid.UUID `json:"user_id" db:"user_id"`
+	Username  string    `json:"username" db:"username"`
+	AvatarURL *string   `json:"avatar_url" db:"avatar_url"`
+	Role      string    `json:"role" db:"role"`
+	JoinedAt  time.Time `json:"joined_at" db:"joined_at"`
 }
 
 type AddMemberRequest struct {

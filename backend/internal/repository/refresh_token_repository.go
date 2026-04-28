@@ -49,10 +49,10 @@ func (r *RefreshTokenRepository) Insert(ctx context.Context, jti, familyID, user
 // Rotate — атомарно проверяет старый токен и создаёт новый.
 //
 // Возвращает:
-//  - ErrTokenNotFound: токен с таким jti отсутствует (подделка либо уже почищен)
-//  - ErrTokenRevoked:  семья была отозвана (через logout или reuse-detection)
-//  - ErrTokenExpired:  истёк срок жизни
-//  - ErrTokenReused:   токен уже использован — это атака, отзываем всю family
+//   - ErrTokenNotFound: токен с таким jti отсутствует (подделка либо уже почищен)
+//   - ErrTokenRevoked:  семья была отозвана (через logout или reuse-detection)
+//   - ErrTokenExpired:  истёк срок жизни
+//   - ErrTokenReused:   токен уже использован — это атака, отзываем всю family
 //
 // При reuse транзакция помечает revoked_at для всей family — все их рефреши
 // мёртвые. Юзер должен залогиниться заново.

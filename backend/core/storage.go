@@ -25,8 +25,8 @@ func NewStorage() *Storage {
 	publicURL := os.Getenv("R2_PUBLIC_URL")
 
 	client := s3.New(s3.Options{
-		Region:      "auto",
-		Credentials: credentials.NewStaticCredentialsProvider(accessKey, secretKey, ""),
+		Region:       "auto",
+		Credentials:  credentials.NewStaticCredentialsProvider(accessKey, secretKey, ""),
 		BaseEndpoint: aws.String(endpoint),
 	})
 

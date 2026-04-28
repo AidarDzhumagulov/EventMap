@@ -25,6 +25,10 @@ var allowedTypes = map[string]string{
 	"image/webp": ".webp",
 }
 
+// Максимальный размер тела multipart-запроса. Защита от DoS через большие upload'ы.
+// 10 МБ хватит для аватаров и обложек, всё что больше — отбиваем на уровне TCP-чтения.
+const maxUploadSize = 10 << 20 // 10 MB
+
 // POST /upload?type=avatar|cover — загружает файл в R2, возвращает {"url": "..."}
 func (h *UploadHandler) Upload(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
@@ -32,8 +36,13 @@ func (h *UploadHandler) Upload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := r.ParseMultipartForm(10 << 20); err != nil { // 10 MB
-		http.Error(w, "Файл слишком большой (макс. 10MB)", http.StatusBadRequest)
+	// MaxBytesReader физически ограничивает чтение тела — даже если клиент шлёт
+	// 10ГБ, мы прочитаем только 10МБ и вернём 413. Без этого ParseMultipartForm
+	// загружает в память всё что прислали (DoS-вектор).
+	r.Body = http.MaxBytesReader(w, r.Body, maxUploadSize)
+
+	if err := r.ParseMultipartForm(maxUploadSize); err != nil {
+		http.Error(w, "Файл слишком большой (макс. 10MB)", http.StatusRequestEntityTooLarge)
 		return
 	}
 

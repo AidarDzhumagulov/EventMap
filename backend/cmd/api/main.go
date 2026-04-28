@@ -8,6 +8,7 @@ import (
 	"event-map/internal/handler"
 	"event-map/internal/middleware"
 	"event-map/internal/repository"
+	"fmt"
 	"log"
 	"log/slog"
 	"net/http"
@@ -21,6 +22,15 @@ import (
 )
 
 func main() {
+	if err := run(); err != nil {
+		slog.Error("server exited with error", "err", err)
+		os.Exit(1)
+	}
+}
+
+// run — основной runtime приложения. Вынесен из main() чтобы defer'ы
+// (db.Close, bgCancel, и т.п.) гарантированно отработали перед os.Exit.
+func run() error {
 	if err := godotenv.Load(); err != nil {
 		log.Println("godotenv: .env не найден, используем переменные окружения")
 	}
@@ -64,9 +74,9 @@ func main() {
 		MaxIdleTime:  time.Duration(poolTimeout) * time.Second,
 	})
 	if err != nil {
-		log.Fatalln("Не удалось подключиться к БД:", err)
+		return fmt.Errorf("connect to DB: %w", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	mux := http.NewServeMux()
 	authMW := middleware.AuthLogging
@@ -76,7 +86,13 @@ func main() {
 	// 0.2 rps = 1 запрос в 5 сек; burst 5 = можно 5 запросов подряд, потом ждать.
 	authLimiter := middleware.NewIPLimiter(0.2, 5)
 
-	mux.HandleFunc("/ping", pub(pingHandler(db)))
+	// Healthchecks. Разделены чтобы k8s/LB могли понимать состояние:
+	//   /live  — процесс жив (всегда 200, не дёргает БД)
+	//   /ready — готов принимать трафик (503 если БД недоступна)
+	// Оставлен alias /ping для обратной совместимости с существующими probe'ами.
+	mux.HandleFunc("/live", liveHandler)
+	mux.HandleFunc("/ready", readyHandler(db))
+	mux.HandleFunc("/ping", readyHandler(db))
 
 	storage := core.NewStorage()
 
@@ -162,7 +178,7 @@ func main() {
 
 	srv := &http.Server{
 		Addr:    ":8080",
-		Handler: mux,
+		Handler: middleware.CORS(mux),
 		// Защита от Slowloris и подобных DoS-атак.
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       30 * time.Second,
@@ -190,9 +206,10 @@ func main() {
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGTERM, syscall.SIGINT)
 
+	var runErr error
 	select {
 	case err := <-serverErr:
-		log.Fatalln("server failed:", err)
+		runErr = fmt.Errorf("server failed: %w", err)
 	case sig := <-sigCh:
 		slog.Info("shutdown initiated", "signal", sig.String())
 	}
@@ -204,6 +221,7 @@ func main() {
 		slog.Error("shutdown failed", "err", err)
 	}
 	slog.Info("shutdown complete")
+	return runErr
 }
 
 // runTokenCleanup — периодически чистит протухшие refresh-токены.
@@ -240,9 +258,17 @@ func doCleanup(ctx context.Context, repo *repository.RefreshTokenRepository) {
 	}
 }
 
-// pingHandler — health check, проверяет и БД тоже.
-// Без проверки БД k8s не понимает что под нездоров если postgres упал.
-func pingHandler(db interface{ Ping() error }) http.HandlerFunc {
+// liveHandler — для liveness probe. Если процесс отвечает — он жив.
+// Не дёргает БД, чтобы временный сбой Postgres не вызвал рестарт пода.
+func liveHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte(`{"status":"alive"}`))
+}
+
+// readyHandler — для readiness probe. Проверяет что БД доступна.
+// Если 503 — k8s выводит под из балансировки до восстановления.
+func readyHandler(db interface{ Ping() error }) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		if err := db.Ping(); err != nil {
@@ -251,6 +277,6 @@ func pingHandler(db interface{ Ping() error }) http.HandlerFunc {
 			return
 		}
 		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{"status":"ok"}`))
+		_, _ = w.Write([]byte(`{"status":"ready"}`))
 	}
 }

@@ -1,0 +1,83 @@
+# golangci-lint v2 config for EventMap backend.
+# Запуск: golangci-lint run
+
+version: "2"
+
+run:
+  timeout: 3m
+  tests: true
+
+linters:
+  default: none
+  enable:
+    # Безопасность и корректность
+    - errcheck         # игнор return error — частый источник скрытых багов
+    - gosec            # security issues (hardcoded credentials, weak crypto, sql injection)
+    - govet            # официальный go vet
+    - staticcheck      # ловит мёртвый код, неэффективные паттерны
+    - sqlclosecheck    # rows.Close() забыт = leak соединений
+    - rowserrcheck     # rows.Err() забыт = тихая потеря ошибки
+    - bodyclose        # http.Response.Body.Close() забыт = leak
+
+    # Конкурентность и контекст
+    - contextcheck     # context должен передаваться правильно
+    - noctx            # http.Get без context = таймаут не работает
+
+    # Качество кода
+    - ineffassign      # переменная присвоена но не используется
+    - unused           # неиспользуемые приватные типы/функции
+    - misspell         # опечатки в комментариях/строках
+    - unconvert        # лишние type conversions
+    - prealloc         # slice без cap-hint когда длина известна
+    - gocritic         # большой набор полезных проверок
+
+  settings:
+    gosec:
+      excludes:
+        # G104: error not checked — есть errcheck.
+        - G104
+        # G117: secret in struct field — false positive на AccessToken/RefreshToken
+        # (это и должно идти в JSON, такая API).
+        - G117
+        # G706: log injection — slog экранирует значения, false positive.
+        - G706
+
+    gocritic:
+      enabled-tags:
+        - diagnostic
+        - performance
+        - style
+      disabled-checks:
+        # if-else-if это нормальный поток управления.
+        - ifElseChain
+        # Для models — копирование struct'ов это норма, не "huge param".
+        - hugeParam
+        # Косметика, не бьёт по поведению.
+        - paramTypeCombine
+        - rangeValCopy
+
+  exclusions:
+    rules:
+      # JSON Encode на response writer почти никогда не падает на простых
+      # структурах. Если упадёт — клиент уже получил частичный response,
+      # обработать всё равно нечем. Стандартный Go-паттерн — игнорить.
+      - path: internal/handler/
+        text: "Error return value of `\\(\\*encoding/json\\.Encoder\\).Encode` is not checked"
+        linters:
+          - errcheck
+
+      # defer db.Close() / defer res.Body.Close() — стандартный паттерн.
+      - source: "defer .*\\.Close\\(\\)"
+        linters:
+          - errcheck
+
+      # В _test.go разрешаем shortcuts.
+      - path: _test\.go
+        linters:
+          - errcheck
+          - gosec
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
