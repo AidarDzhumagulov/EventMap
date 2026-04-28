@@ -1,13 +1,14 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
-import '../../../core/network/dio_client.dart';
+import '../../../core/snackbar.dart';
 import '../../../core/theme.dart';
 import '../../../models/event_model.dart';
 import '../../event/screens/event_detail_screen.dart';
 import '../../event/widgets/rsvp_buttons.dart';
-import '../../saved/screens/saved_screen.dart';
+import '../../saved/providers/saved_provider.dart';
 import '../providers/events_provider.dart';
 
 class EventBottomSheet extends ConsumerWidget {
@@ -41,12 +42,16 @@ class EventBottomSheet extends ConsumerWidget {
                 _buildHandle(),
                 if (selectedEvent.coverUrl != null)
                   ClipRRect(
-                    child: Image.network(
-                      selectedEvent.coverUrl!,
+                    child: CachedNetworkImage(
+                      imageUrl: selectedEvent.coverUrl!,
                       height: 180,
                       width: double.infinity,
                       fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                      placeholder: (_, __) => Container(
+                        height: 180,
+                        color: AppColors.surfaceVariant,
+                      ),
+                      errorWidget: (_, __, ___) => const SizedBox.shrink(),
                     ),
                   ),
                 _buildEventCard(context, selectedEvent, ref),
@@ -124,86 +129,97 @@ class EventBottomSheet extends ConsumerWidget {
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         // Категория + статус
-        Row(
-          children: [
-            Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-              decoration: BoxDecoration(
-                color: AppColors.glassBackground,
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: AppColors.glassBorder),
-              ),
-              child: Text(
-                '${event.categoryEmoji} ${event.category}',
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      fontSize: 12,
-                      color: AppColors.textPrimary,
-                    ),
-              ),
-            ),
-            const SizedBox(width: 8),
-            if (event.status == EventStatus.ongoing)
+        Expanded(
+          child: Wrap(
+            spacing: 8,
+            runSpacing: 6,
+            children: [
               Container(
                 padding:
                     const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                 decoration: BoxDecoration(
-                  color: AppColors.success.withOpacity(0.15),
+                  color: AppColors.glassBackground,
                   borderRadius: BorderRadius.circular(20),
-                  border:
-                      Border.all(color: AppColors.success.withOpacity(0.4)),
+                  border: Border.all(color: AppColors.glassBorder),
                 ),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 6,
-                      height: 6,
-                      decoration: const BoxDecoration(
-                        color: AppColors.success,
-                        shape: BoxShape.circle,
+                child: Text(
+                  '${event.categoryEmoji} ${event.category}',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        fontSize: 12,
+                        color: AppColors.textPrimary,
                       ),
-                    ),
-                    const SizedBox(width: 5),
-                    Text(
-                      'Идёт сейчас',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            fontSize: 12,
-                            color: AppColors.success,
-                          ),
-                    ),
-                  ],
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
-            if (event.isPrivate)
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                decoration: BoxDecoration(
-                  color: AppColors.secondary.withOpacity(0.15),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                      color: AppColors.secondary.withOpacity(0.4)),
+              if (event.status == EventStatus.ongoing)
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: AppColors.success.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                        color: AppColors.success.withValues(alpha: 0.4)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 6,
+                        height: 6,
+                        decoration: const BoxDecoration(
+                          color: AppColors.success,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 5),
+                      Text(
+                        'Идёт сейчас',
+                        style:
+                            Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                  fontSize: 12,
+                                  color: AppColors.success,
+                                ),
+                      ),
+                    ],
+                  ),
                 ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.lock_rounded,
-                        color: AppColors.secondary, size: 12),
-                    const SizedBox(width: 4),
-                    Text(
-                      'Закрытое',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            fontSize: 12,
-                            color: AppColors.secondary,
-                          ),
-                    ),
-                  ],
+              if (event.isPrivate)
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: AppColors.secondary.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                        color: AppColors.secondary.withValues(alpha: 0.4)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.lock_rounded,
+                          color: AppColors.secondary, size: 12),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Закрытое',
+                        style:
+                            Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                  fontSize: 12,
+                                  color: AppColors.secondary,
+                                ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-          ],
+            ],
+          ),
         ),
+        const SizedBox(width: 8),
         Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            _SaveButton(eventId: event.id),
+            _SaveButton(event: event),
             const SizedBox(width: 8),
             // Закрыть
             GestureDetector(
@@ -287,9 +303,9 @@ class EventBottomSheet extends ConsumerWidget {
       child: Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: color.withOpacity(0.08),
+          color: color.withValues(alpha: 0.08),
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: color.withOpacity(0.2)),
+          border: Border.all(color: color.withValues(alpha: 0.2)),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -320,55 +336,25 @@ class EventBottomSheet extends ConsumerWidget {
 
 }
 
-class _SaveButton extends ConsumerStatefulWidget {
-  final String eventId;
-  const _SaveButton({required this.eventId});
+class _SaveButton extends ConsumerWidget {
+  final EventModel event;
+  const _SaveButton({required this.event});
 
   @override
-  ConsumerState<_SaveButton> createState() => _SaveButtonState();
-}
+  Widget build(BuildContext context, WidgetRef ref) {
+    final savedAsync = ref.watch(savedEventsProvider);
+    final isSaved = ref.watch(isSavedProvider(event.id));
 
-class _SaveButtonState extends ConsumerState<_SaveButton> {
-  bool? _isSaved;
-
-  @override
-  void initState() {
-    super.initState();
-    _load();
-  }
-
-  Future<void> _load() async {
-    try {
-      final dio = ref.read(dioClientProvider);
-      final response = await dio.get('/events/is-saved',
-          queryParameters: {'id': widget.eventId});
-      final saved = (response.data as Map<String, dynamic>)['saved'] as bool;
-      if (mounted) setState(() => _isSaved = saved);
-    } catch (_) {
-      if (mounted) setState(() => _isSaved = false);
-    }
-  }
-
-  Future<void> _toggle() async {
-    final current = _isSaved ?? false;
-    setState(() => _isSaved = !current);
-    try {
-      final dio = ref.read(dioClientProvider);
-      if (current) {
-        await dio.delete('/events/save', queryParameters: {'id': widget.eventId});
-      } else {
-        await dio.post('/events/save', queryParameters: {'id': widget.eventId});
-      }
-      ref.invalidate(savedEventsProvider);
-    } catch (_) {
-      if (mounted) setState(() => _isSaved = current);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: _isSaved == null ? null : _toggle,
+      onTap: savedAsync.isLoading
+          ? null
+          : () async {
+              try {
+                await ref.read(savedEventsProvider.notifier).toggle(event);
+              } catch (e) {
+                if (context.mounted) context.showApiError(e);
+              }
+            },
       child: Container(
         width: 32,
         height: 32,
@@ -377,15 +363,15 @@ class _SaveButtonState extends ConsumerState<_SaveButton> {
           shape: BoxShape.circle,
           border: Border.all(color: AppColors.glassBorder),
         ),
-        child: _isSaved == null
+        child: savedAsync.isLoading
             ? const Padding(
                 padding: EdgeInsets.all(7),
                 child: CircularProgressIndicator(
                     strokeWidth: 1.5, color: AppColors.primary),
               )
             : Icon(
-                _isSaved! ? Icons.favorite_rounded : Icons.favorite_border_rounded,
-                color: _isSaved! ? Colors.redAccent : AppColors.textSecondary,
+                isSaved ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+                color: isSaved ? Colors.redAccent : AppColors.textSecondary,
                 size: 16,
               ),
       ),

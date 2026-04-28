@@ -23,53 +23,72 @@ final eventsProvider =
   return ref.read(eventRepositoryProvider).getEvents(city: city, search: search);
 });
 
+/// Чистая функция фильтрации — используется и фид-провайдером, и FeedScreen.
+/// Не трогает state, только применяет фильтры. Тестируется в изоляции.
+List<EventModel> applyEventFilters(
+  List<EventModel> events, {
+  required DateFilter dateFilter,
+  required int? selectedTypeId,
+  required Map<int, int> categoryTypeMap,
+}) {
+  var filtered = events;
+
+  if (selectedTypeId != null) {
+    filtered = filtered.where((e) {
+      if (e.categoryId == null) return false;
+      return categoryTypeMap[e.categoryId] == selectedTypeId;
+    }).toList();
+  }
+
+  final now = DateTime.now();
+  switch (dateFilter) {
+    case DateFilter.today:
+      final startOfDay = DateTime(now.year, now.month, now.day);
+      final endOfDay = startOfDay.add(const Duration(days: 1));
+      filtered = filtered
+          .where((e) =>
+              e.startTime.isAfter(startOfDay) &&
+              e.startTime.isBefore(endOfDay))
+          .toList();
+    case DateFilter.thisWeek:
+      final endOfWeek = now.add(const Duration(days: 7));
+      filtered = filtered
+          .where((e) =>
+              e.startTime.isAfter(now) && e.startTime.isBefore(endOfWeek))
+          .toList();
+    case DateFilter.all:
+      break;
+  }
+
+  return filtered;
+}
+
+/// Строит карту category_id → type_id для быстрого фильтра по типу категории.
+Map<int, int> buildCategoryTypeMap(AsyncValue<List<dynamic>> categoriesAsync) {
+  final map = <int, int>{};
+  categoriesAsync.whenData((types) {
+    for (final type in types) {
+      for (final cat in type.categories) {
+        map[cat.id as int] = type.id as int;
+      }
+    }
+  });
+  return map;
+}
+
 final filteredEventsProvider =
     Provider.family<AsyncValue<List<EventModel>>, String>((ref, city) {
   final eventsAsync = ref.watch(eventsProvider(city));
   final selectedTypeId = ref.watch(selectedCategoryTypeIdProvider);
   final dateFilter = ref.watch(selectedDateFilterProvider);
-  final categoriesAsync = ref.watch(categoriesProvider);
+  final categoryTypeMap = buildCategoryTypeMap(ref.watch(categoriesProvider));
 
-  return eventsAsync.whenData((events) {
-    var filtered = events;
-
-    if (selectedTypeId != null) {
-      final categoryTypeMap = <int, int>{};
-      categoriesAsync.whenData((types) {
-        for (final type in types) {
-          for (final cat in type.categories) {
-            categoryTypeMap[cat.id] = type.id;
-          }
-        }
-      });
-      filtered = filtered.where((e) {
-        if (e.categoryId == null) return false;
-        return categoryTypeMap[e.categoryId] == selectedTypeId;
-      }).toList();
-    }
-
-    final now = DateTime.now();
-    switch (dateFilter) {
-      case DateFilter.today:
-        final startOfDay = DateTime(now.year, now.month, now.day);
-        final endOfDay = startOfDay.add(const Duration(days: 1));
-        filtered = filtered
-            .where((e) =>
-                e.startTime.isAfter(startOfDay) &&
-                e.startTime.isBefore(endOfDay))
-            .toList();
-      case DateFilter.thisWeek:
-        final endOfWeek = now.add(const Duration(days: 7));
-        filtered = filtered
-            .where((e) =>
-                e.startTime.isAfter(now) && e.startTime.isBefore(endOfWeek))
-            .toList();
-      case DateFilter.all:
-        break;
-    }
-
-    return filtered;
-  });
+  return eventsAsync.whenData((events) => applyEventFilters(
+        events,
+        dateFilter: dateFilter,
+        selectedTypeId: selectedTypeId,
+        categoryTypeMap: categoryTypeMap,
+      ));
 });
 
 final selectedEventProvider = StateProvider<EventModel?>((ref) => null);

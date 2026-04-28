@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -46,65 +47,19 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
     }
   }
 
-  List<EventModel> _applyFilters(
-    List<EventModel> events,
-    DateFilter dateFilter,
-    int? selectedTypeId,
-    Map<int, int> categoryTypeMap,
-  ) {
-    var filtered = events;
-
-    if (selectedTypeId != null) {
-      filtered = filtered.where((e) {
-        if (e.categoryId == null) return false;
-        return categoryTypeMap[e.categoryId] == selectedTypeId;
-      }).toList();
-    }
-
-    final now = DateTime.now();
-    switch (dateFilter) {
-      case DateFilter.today:
-        final startOfDay = DateTime(now.year, now.month, now.day);
-        final endOfDay = startOfDay.add(const Duration(days: 1));
-        filtered = filtered
-            .where((e) =>
-                e.startTime.isAfter(startOfDay) &&
-                e.startTime.isBefore(endOfDay))
-            .toList();
-      case DateFilter.thisWeek:
-        final endOfWeek = now.add(const Duration(days: 7));
-        filtered = filtered
-            .where((e) =>
-                e.startTime.isAfter(now) && e.startTime.isBefore(endOfWeek))
-            .toList();
-      case DateFilter.all:
-        break;
-    }
-
-    return filtered;
-  }
-
   @override
   Widget build(BuildContext context) {
     final feedState = ref.watch(paginatedEventsProvider);
     final dateFilter = ref.watch(selectedDateFilterProvider);
     final selectedTypeId = ref.watch(selectedCategoryTypeIdProvider);
-    final categoriesAsync = ref.watch(categoriesProvider);
+    final categoryTypeMap =
+        buildCategoryTypeMap(ref.watch(categoriesProvider));
 
-    final categoryTypeMap = <int, int>{};
-    categoriesAsync.whenData((types) {
-      for (final type in types) {
-        for (final cat in type.categories) {
-          categoryTypeMap[cat.id] = type.id;
-        }
-      }
-    });
-
-    final visibleEvents = _applyFilters(
+    final visibleEvents = applyEventFilters(
       feedState.events,
-      dateFilter,
-      selectedTypeId,
-      categoryTypeMap,
+      dateFilter: dateFilter,
+      selectedTypeId: selectedTypeId,
+      categoryTypeMap: categoryTypeMap,
     );
 
     return Scaffold(
@@ -276,12 +231,16 @@ class _EventCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (event.coverUrl != null)
-            Image.network(
-              event.coverUrl!,
+            CachedNetworkImage(
+              imageUrl: event.coverUrl!,
               height: 160,
               width: double.infinity,
               fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+              placeholder: (_, __) => Container(
+                height: 160,
+                color: AppColors.surfaceVariant,
+              ),
+              errorWidget: (_, __, ___) => const SizedBox.shrink(),
             ),
           Padding(
             padding: const EdgeInsets.all(16),
@@ -302,10 +261,15 @@ class _EventCard extends StatelessWidget {
                 _badge(label: '🔒 Закрытое', color: AppColors.secondary),
               ],
               const Spacer(),
-              Text(
-                event.cityName,
-                style: const TextStyle(
-                    color: AppColors.textHint, fontSize: 12),
+              Flexible(
+                child: Text(
+                  event.cityName,
+                  style: const TextStyle(
+                      color: AppColors.textHint, fontSize: 12),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.right,
+                ),
               ),
             ],
           ),

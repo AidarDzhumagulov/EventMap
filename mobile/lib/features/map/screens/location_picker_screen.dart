@@ -19,7 +19,7 @@ class LocationPickerScreen extends StatefulWidget {
 
 class _LocationPickerScreenState extends State<LocationPickerScreen> {
   static const _dgisApiKey = String.fromEnvironment('DGIS_API_KEY');
-  static const _2gisTile =
+  static const _dgisTileTemplate =
       'https://tile2.maps.2gis.com/tiles?x={x}&y={y}&z={z}&v=1&r=g&ts=online_sd&key=$_dgisApiKey';
 
   late LatLng _picked;
@@ -163,7 +163,7 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
             ),
             children: [
               TileLayer(
-                urlTemplate: _2gisTile,
+                urlTemplate: _dgisTileTemplate,
                 userAgentPackageName: 'com.eventmap.event_map',
                 maxZoom: 19,
               ),

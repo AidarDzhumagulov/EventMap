@@ -1,5 +1,6 @@
 import 'dart:ui' show lerpDouble;
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -492,10 +493,11 @@ class _EventCard extends StatelessWidget {
         children: [
           // Background
           if (event.coverUrl != null)
-            Image.network(
-              event.coverUrl!,
+            CachedNetworkImage(
+              imageUrl: event.coverUrl!,
               fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => _gradientBg(accent),
+              placeholder: (_, __) => _gradientBg(accent),
+              errorWidget: (_, __, ___) => _gradientBg(accent),
             )
           else
             _gradientBg(accent),

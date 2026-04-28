@@ -75,12 +75,16 @@ class EventMarker extends StatelessWidget {
                 const Text('🔒', style: TextStyle(fontSize: 13)),
                 if (isSelected) ...[
                   const SizedBox(width: 6),
-                  const Text(
-                    'Закрытое событие',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
+                  const Flexible(
+                    child: Text(
+                      'Закрытое событие',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
                 ],
@@ -140,15 +144,17 @@ class EventMarker extends StatelessWidget {
                   ),
                   if (isSelected) ...[
                     const SizedBox(width: 6),
-                    Text(
-                      event.title,
-                      style: const TextStyle(
-                        color: AppColors.background,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
+                    Flexible(
+                      child: Text(
+                        event.title,
+                        style: const TextStyle(
+                          color: AppColors.background,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
                     ),
                   ],
                 ],

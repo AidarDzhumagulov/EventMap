@@ -2,19 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
-import '../../../core/network/dio_client.dart';
 import '../../../core/theme.dart';
 import '../../../models/event_model.dart';
 import '../../event/screens/event_detail_screen.dart';
+import '../providers/saved_provider.dart';
 
-final savedEventsProvider = FutureProvider<List<EventModel>>((ref) async {
-  final dio = ref.read(dioClientProvider);
-  final response = await dio.get('/events/saved');
-  final data = response.data as List<dynamic>;
-  return data
-      .map((e) => EventModel.fromJson(e as Map<String, dynamic>))
-      .toList();
-});
+// Re-export для обратной совместимости со старыми импортами.
+export '../providers/saved_provider.dart' show savedEventsProvider;
 
 class SavedScreen extends ConsumerWidget {
   const SavedScreen({super.key});
@@ -91,12 +85,9 @@ class SavedScreen extends ConsumerWidget {
                               const SizedBox(height: 12),
                           itemBuilder: (context, i) => _SavedEventCard(
                             event: events[i],
-                            onUnsave: () async {
-                              final dio = ref.read(dioClientProvider);
-                              await dio.delete('/events/save',
-                                  queryParameters: {'id': events[i].id});
-                              ref.invalidate(savedEventsProvider);
-                            },
+                            onUnsave: () => ref
+                                .read(savedEventsProvider.notifier)
+                                .toggle(events[i]),
                           ),
                         ),
                       ),

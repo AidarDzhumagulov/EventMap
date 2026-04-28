@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -5,11 +6,12 @@ import 'package:dio/dio.dart';
 import 'package:intl/intl.dart';
 
 import '../../../core/network/dio_client.dart';
+import '../../../core/snackbar.dart';
 import '../../../core/theme.dart';
 import '../../../models/event_model.dart';
 import '../../map/providers/events_provider.dart';
 import '../../profile/repository/user_repository.dart';
-import '../../saved/screens/saved_screen.dart';
+import '../../saved/providers/saved_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../widgets/rsvp_buttons.dart';
@@ -26,43 +28,12 @@ class EventDetailScreen extends ConsumerStatefulWidget {
 }
 
 class _EventDetailScreenState extends ConsumerState<EventDetailScreen> {
-  bool? _isSaved;
   late EventModel _event;
 
   @override
   void initState() {
     super.initState();
     _event = widget.event;
-    _loadSaveState(ref.read(dioClientProvider));
-  }
-
-  Future<void> _loadSaveState(dio) async {
-    try {
-      final response = await dio.get('/events/is-saved',
-          queryParameters: {'id': _event.id});
-      final saved = (response.data as Map<String, dynamic>)['saved'] as bool;
-      if (mounted) setState(() => _isSaved = saved);
-    } catch (_) {
-      if (mounted) setState(() => _isSaved = false);
-    }
-  }
-
-  Future<void> _toggleSave() async {
-    final current = _isSaved ?? false;
-    setState(() => _isSaved = !current);
-    try {
-      final dio = ref.read(dioClientProvider);
-      if (current) {
-        await dio.delete('/events/save',
-            queryParameters: {'id': _event.id});
-      } else {
-        await dio.post('/events/save',
-            queryParameters: {'id': _event.id});
-      }
-      ref.invalidate(savedEventsProvider);
-    } catch (_) {
-      if (mounted) setState(() => _isSaved = current);
-    }
   }
 
   void _onRsvpChanged(String? oldStatus, String? newStatus) {
@@ -109,20 +80,10 @@ class _EventDetailScreenState extends ConsumerState<EventDetailScreen> {
       if (mounted) {
         ref.invalidate(eventsProvider(_event.cityName));
         Navigator.of(context).pop();
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Событие удалено'),
-          backgroundColor: AppColors.primary,
-          behavior: SnackBarBehavior.floating,
-        ));
+        context.showSuccess('Событие удалено');
       }
-    } catch (_) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Ошибка удаления'),
-          backgroundColor: Colors.redAccent,
-          behavior: SnackBarBehavior.floating,
-        ));
-      }
+    } catch (e) {
+      if (mounted) context.showApiError(e, fallback: 'Ошибка удаления');
     }
   }
 
@@ -130,6 +91,8 @@ class _EventDetailScreenState extends ConsumerState<EventDetailScreen> {
   Widget build(BuildContext context) {
     final event = _event; // используем локальную копию
     final meAsync = ref.watch(meProvider);
+    final isSaved = ref.watch(isSavedProvider(event.id));
+    final savedAsync = ref.watch(savedEventsProvider);
     final dateStr =
         DateFormat('d MMMM yyyy, HH:mm', 'ru').format(event.startTime);
 
@@ -188,7 +151,7 @@ class _EventDetailScreenState extends ConsumerState<EventDetailScreen> {
             ),
           ],
           IconButton(
-            icon: _isSaved == null
+            icon: savedAsync.isLoading
                 ? const SizedBox(
                     width: 20,
                     height: 20,
@@ -196,13 +159,16 @@ class _EventDetailScreenState extends ConsumerState<EventDetailScreen> {
                         strokeWidth: 2, color: AppColors.primary),
                   )
                 : Icon(
-                    _isSaved!
+                    isSaved
                         ? Icons.favorite_rounded
                         : Icons.favorite_border_rounded,
-                    color:
-                        _isSaved! ? Colors.redAccent : AppColors.textHint,
+                    color: isSaved ? Colors.redAccent : AppColors.textHint,
                   ),
-            onPressed: _isSaved == null ? null : _toggleSave,
+            onPressed: savedAsync.isLoading
+                ? null
+                : () => ref
+                    .read(savedEventsProvider.notifier)
+                    .toggle(_event),
           ),
         ],
       ),
@@ -211,14 +177,16 @@ class _EventDetailScreenState extends ConsumerState<EventDetailScreen> {
         children: [
           // Обложка
           if (event.coverUrl != null)
-            Container(
+            CachedNetworkImage(
+              imageUrl: event.coverUrl!,
               height: 200,
-              decoration: BoxDecoration(
-                image: DecorationImage(
-                  image: NetworkImage(event.coverUrl!),
-                  fit: BoxFit.cover,
-                ),
+              width: double.infinity,
+              fit: BoxFit.cover,
+              placeholder: (_, __) => Container(
+                height: 200,
+                color: AppColors.surfaceVariant,
               ),
+              errorWidget: (_, __, ___) => const SizedBox.shrink(),
             ),
           Padding(
             padding: const EdgeInsets.all(20),
@@ -239,10 +207,14 @@ class _EventDetailScreenState extends ConsumerState<EventDetailScreen> {
           const SizedBox(height: 16),
 
           // Название
-          Text(event.title,
-              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  )),
+          Text(
+            event.title,
+            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
+            maxLines: 3,
+            overflow: TextOverflow.ellipsis,
+          ),
           const SizedBox(height: 20),
 
           // Мета-инфо
@@ -377,17 +349,21 @@ class _EventDetailScreenState extends ConsumerState<EventDetailScreen> {
         children: [
           Icon(icon, color: AppColors.primary, size: 18),
           const SizedBox(width: 12),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(label,
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label,
+                    style: const TextStyle(
+                        color: AppColors.textHint, fontSize: 11)),
+                const SizedBox(height: 2),
+                Text(
+                  value,
                   style: const TextStyle(
-                      color: AppColors.textHint, fontSize: 11)),
-              const SizedBox(height: 2),
-              Text(value,
-                  style: const TextStyle(
-                      color: AppColors.textPrimary, fontSize: 14)),
-            ],
+                      color: AppColors.textPrimary, fontSize: 14),
+                ),
+              ],
+            ),
           ),
         ],
       ),

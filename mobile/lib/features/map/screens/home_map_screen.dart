@@ -40,7 +40,7 @@ class _HomeMapScreenState extends ConsumerState<HomeMapScreen> {
   }
 
   static const _dgisApiKey = String.fromEnvironment('DGIS_API_KEY');
-  static const _2gisTile =
+  static const _dgisTileTemplate =
       'https://tile2.maps.2gis.com/tiles?x={x}&y={y}&z={z}&v=1&r=g&ts=online_sd&key=$_dgisApiKey';
 
   @override
@@ -76,7 +76,7 @@ class _HomeMapScreenState extends ConsumerState<HomeMapScreen> {
             children: [
               // Тайлы карты
               TileLayer(
-                urlTemplate: _2gisTile,
+                urlTemplate: _dgisTileTemplate,
                 userAgentPackageName: 'com.eventmap.event_map',
                 maxZoom: 19,
               ),
@@ -118,7 +118,7 @@ class _HomeMapScreenState extends ConsumerState<HomeMapScreen> {
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
                   colors: [
-                    AppColors.background.withOpacity(0.95),
+                    AppColors.background.withValues(alpha: 0.95),
                     Colors.transparent,
                   ],
                   stops: const [0.0, 1.0],
@@ -173,7 +173,7 @@ class _HomeMapScreenState extends ConsumerState<HomeMapScreen> {
                 decoration: BoxDecoration(
                   color: AppColors.surface,
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.redAccent.withOpacity(0.4)),
+                  border: Border.all(color: Colors.redAccent.withValues(alpha: 0.4)),
                 ),
                 child: const Text(
                   'Не удалось загрузить события',
@@ -624,7 +624,7 @@ class _HomeMapScreenState extends ConsumerState<HomeMapScreen> {
           border: Border.all(color: AppColors.glassBorder),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.3),
+              color: Colors.black.withValues(alpha: 0.3),
               blurRadius: 12,
             ),
           ],
@@ -729,7 +729,7 @@ class _HomeMapScreenState extends ConsumerState<HomeMapScreen> {
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
         decoration: BoxDecoration(
           color: isSelected
-              ? AppColors.primary.withOpacity(0.12)
+              ? AppColors.primary.withValues(alpha: 0.12)
               : Colors.transparent,
           borderRadius: BorderRadius.circular(12),
         ),

@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -99,19 +100,12 @@ class ProfileScreen extends ConsumerWidget {
                   ),
                   child: ClipOval(
                     child: user.avatarUrl != null
-                        ? Image.network(
-                            user.avatarUrl!,
+                        ? CachedNetworkImage(
+                            imageUrl: user.avatarUrl!,
                             fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => Center(
-                              child: Text(
-                                user.username.isNotEmpty ? user.username.substring(0, 1).toUpperCase() : '?',
-                                style: const TextStyle(
-                                  color: AppColors.primary,
-                                  fontSize: 40,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                            ),
+                            placeholder: (_, __) => _avatarFallback(user.username),
+                            errorWidget: (_, __, ___) =>
+                                _avatarFallback(user.username),
                           )
                         : Center(
                             child: Text(
@@ -156,12 +150,16 @@ class ProfileScreen extends ConsumerWidget {
                     Text(user.rankEmoji,
                         style: const TextStyle(fontSize: 20)),
                     const SizedBox(width: 8),
-                    Text(
-                      user.rankLabel,
-                      style: const TextStyle(
-                        color: AppColors.textPrimary,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 16,
+                    Flexible(
+                      child: Text(
+                        user.rankLabel,
+                        style: const TextStyle(
+                          color: AppColors.textPrimary,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 16,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -283,6 +281,17 @@ class ProfileScreen extends ConsumerWidget {
       ),
     );
   }
+
+  Widget _avatarFallback(String username) => Center(
+        child: Text(
+          username.isNotEmpty ? username.substring(0, 1).toUpperCase() : '?',
+          style: const TextStyle(
+            color: AppColors.primary,
+            fontSize: 40,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      );
 
   String _roleLabel(String role) {
     switch (role) {

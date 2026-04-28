@@ -121,7 +121,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
             border: Border.all(color: AppColors.glassBorder),
             boxShadow: [
               BoxShadow(
-                color: AppColors.primary.withOpacity(0.3),
+                color: AppColors.primary.withValues(alpha: 0.3),
                 blurRadius: 24,
                 spreadRadius: 2,
               ),
@@ -198,9 +198,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
       width: double.infinity,
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: AppColors.error.withOpacity(0.1),
+        color: AppColors.error.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.error.withOpacity(0.3)),
+        border: Border.all(color: AppColors.error.withValues(alpha: 0.3)),
       ),
       child: Row(
         children: [

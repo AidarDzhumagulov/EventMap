@@ -210,7 +210,7 @@ class NeonButton extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: buttonColor.withOpacity(0.35),
+            color: buttonColor.withValues(alpha: 0.35),
             blurRadius: 20,
             spreadRadius: 0,
             offset: const Offset(0, 4),
@@ -221,7 +221,7 @@ class NeonButton extends StatelessWidget {
         onPressed: isLoading ? null : onPressed,
         style: ElevatedButton.styleFrom(
           backgroundColor: buttonColor,
-          disabledBackgroundColor: buttonColor.withOpacity(0.5),
+          disabledBackgroundColor: buttonColor.withValues(alpha: 0.5),
         ),
         child: isLoading
             ? const SizedBox(
