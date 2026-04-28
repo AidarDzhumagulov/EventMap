@@ -35,7 +35,7 @@ func (h *OrganizationHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Create + добавление owner выполняются в одной транзакции внутри репо
-	org, err := h.repo.Create(req, userID)
+	org, err := h.repo.Create(r.Context(), req, userID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -56,7 +56,7 @@ func (h *OrganizationHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid id", http.StatusBadRequest)
 		return
 	}
-	org, err := h.repo.GetByID(id)
+	org, err := h.repo.GetByID(r.Context(), id)
 	if errors.Is(err, repository.ErrNotFound) {
 		http.Error(w, "not found", http.StatusNotFound)
 		return
@@ -79,7 +79,7 @@ func (h *OrganizationHandler) GetMy(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
-	orgs, err := h.repo.GetByUser(userID)
+	orgs, err := h.repo.GetByUser(r.Context(), userID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -109,7 +109,7 @@ func (h *OrganizationHandler) Update(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid request", http.StatusBadRequest)
 		return
 	}
-	org, err := h.repo.Update(id, req, userID)
+	org, err := h.repo.Update(r.Context(), id, req, userID)
 	if errors.Is(err, repository.ErrNotFound) {
 		http.Error(w, "not found", http.StatusNotFound)
 		return
@@ -138,7 +138,7 @@ func (h *OrganizationHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid id", http.StatusBadRequest)
 		return
 	}
-	if err := h.repo.Delete(id, userID); errors.Is(err, repository.ErrNotFound) {
+	if err := h.repo.Delete(r.Context(), id, userID); errors.Is(err, repository.ErrNotFound) {
 		http.Error(w, "not found", http.StatusNotFound)
 		return
 	} else if err != nil {
@@ -165,7 +165,7 @@ func (h *OrganizationHandler) AddMember(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	// Только owner/admin могут добавлять участников
-	if !h.repo.IsOrgAdmin(orgID, callerID) {
+	if !h.repo.IsOrgAdmin(r.Context(), orgID, callerID) {
 		http.Error(w, "Forbidden", http.StatusForbidden)
 		return
 	}
@@ -177,7 +177,7 @@ func (h *OrganizationHandler) AddMember(w http.ResponseWriter, r *http.Request) 
 	if req.Role == "" {
 		req.Role = "manager"
 	}
-	if err := h.repo.AddMember(orgID, req); err != nil {
+	if err := h.repo.AddMember(r.Context(), orgID, req); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -201,7 +201,7 @@ func (h *OrganizationHandler) RemoveMember(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	// Только owner/admin могут удалять участников
-	if !h.repo.IsOrgAdmin(orgID, callerID) {
+	if !h.repo.IsOrgAdmin(r.Context(), orgID, callerID) {
 		http.Error(w, "Forbidden", http.StatusForbidden)
 		return
 	}
@@ -211,7 +211,7 @@ func (h *OrganizationHandler) RemoveMember(w http.ResponseWriter, r *http.Reques
 		http.Error(w, "invalid user_id", http.StatusBadRequest)
 		return
 	}
-	if err := h.repo.RemoveMember(orgID, userID); errors.Is(err, repository.ErrNotFound) {
+	if err := h.repo.RemoveMember(r.Context(), orgID, userID); errors.Is(err, repository.ErrNotFound) {
 		http.Error(w, "not found", http.StatusNotFound)
 		return
 	} else if err != nil {
@@ -232,7 +232,7 @@ func (h *OrganizationHandler) GetMembers(w http.ResponseWriter, r *http.Request)
 		http.Error(w, "invalid id", http.StatusBadRequest)
 		return
 	}
-	members, err := h.repo.GetMembers(orgID)
+	members, err := h.repo.GetMembers(r.Context(), orgID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

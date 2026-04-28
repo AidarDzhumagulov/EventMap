@@ -20,7 +20,7 @@ func (h *CategoryHandler) GetCategories(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	categories, err := h.categoryRepo.GetAllWithCategories()
+	categories, err := h.categoryRepo.GetAllWithCategories(r.Context())
 	if err != nil {
 		http.Error(w, "Ошибка получения категорий", http.StatusInternalServerError)
 		return

@@ -36,7 +36,7 @@ func (h *SavedEventHandler) Save(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.savedRepo.Save(eventID, userID); err != nil {
+	if err := h.savedRepo.Save(r.Context(), eventID, userID); err != nil {
 		http.Error(w, "Ошибка сохранения", http.StatusInternalServerError)
 		return
 	}
@@ -63,7 +63,7 @@ func (h *SavedEventHandler) Unsave(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.savedRepo.Unsave(eventID, userID); err != nil {
+	if err := h.savedRepo.Unsave(r.Context(), eventID, userID); err != nil {
 		http.Error(w, "Ошибка удаления", http.StatusInternalServerError)
 		return
 	}
@@ -90,7 +90,7 @@ func (h *SavedEventHandler) IsSaved(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	saved, err := h.savedRepo.IsSaved(eventID, userID)
+	saved, err := h.savedRepo.IsSaved(r.Context(), eventID, userID)
 	if err != nil {
 		http.Error(w, "Ошибка проверки", http.StatusInternalServerError)
 		return
@@ -113,7 +113,7 @@ func (h *SavedEventHandler) GetSaved(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	events, err := h.savedRepo.GetSavedByUser(userID)
+	events, err := h.savedRepo.GetSavedByUser(r.Context(), userID)
 	if err != nil {
 		http.Error(w, "Ошибка получения сохранённых событий", http.StatusInternalServerError)
 		return

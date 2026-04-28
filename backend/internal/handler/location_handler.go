@@ -36,7 +36,7 @@ func (h *LocationHandler) CreateLocation(w http.ResponseWriter, r *http.Request)
 		req.Provider = "nominatim"
 	}
 
-	loc, err := h.locationRepo.Create(req)
+	loc, err := h.locationRepo.Create(r.Context(), req)
 	if err != nil {
 		http.Error(w, "Ошибка создания локации", http.StatusInternalServerError)
 		return

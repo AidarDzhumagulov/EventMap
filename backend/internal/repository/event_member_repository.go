@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"context"
 	"errors"
 	"event-map/internal/models"
 
@@ -26,8 +27,8 @@ func NewEventMemberRepository(db *sqlx.DB) *EventMemberRepository {
 //
 // Возвращает ErrEventFull если status='go' и max_members уже забит
 // (и юзер ещё не имеет статус 'go' — смена своего же 'go' → 'go' проходит).
-func (r *EventMemberRepository) JoinAtomic(eventID, userID uuid.UUID, status string) (models.EventMember, error) {
-	tx, err := r.db.Beginx()
+func (r *EventMemberRepository) JoinAtomic(ctx context.Context, eventID, userID uuid.UUID, status string) (models.EventMember, error) {
+	tx, err := r.db.BeginTxx(ctx, nil)
 	if err != nil {
 		return models.EventMember{}, err
 	}
@@ -35,7 +36,7 @@ func (r *EventMemberRepository) JoinAtomic(eventID, userID uuid.UUID, status str
 
 	// Лочим строку events до конца транзакции — параллельные Join будут ждать.
 	var maxMembers *int
-	err = tx.Get(&maxMembers,
+	err = tx.GetContext(ctx, &maxMembers,
 		"SELECT max_members FROM events WHERE id = $1 AND deleted_at IS NULL FOR UPDATE",
 		eventID,
 	)
@@ -46,13 +47,13 @@ func (r *EventMemberRepository) JoinAtomic(eventID, userID uuid.UUID, status str
 	// Проверяем лимит только если хотим занять место и ещё не занимали.
 	if status == "go" && maxMembers != nil {
 		var currentStatus string
-		_ = tx.Get(&currentStatus,
+		_ = tx.GetContext(ctx, &currentStatus,
 			"SELECT status FROM event_members WHERE event_id = $1 AND user_id = $2",
 			eventID, userID,
 		)
 		if currentStatus != "go" {
 			var count int
-			if err := tx.Get(&count,
+			if err := tx.GetContext(ctx, &count,
 				"SELECT COUNT(*) FROM event_members WHERE event_id = $1 AND status = 'go'",
 				eventID,
 			); err != nil {
@@ -65,7 +66,7 @@ func (r *EventMemberRepository) JoinAtomic(eventID, userID uuid.UUID, status str
 	}
 
 	var member models.EventMember
-	err = tx.Get(&member, `
+	err = tx.GetContext(ctx, &member, `
 		INSERT INTO event_members (event_id, user_id, status)
 		VALUES ($1, $2, $3)
 		ON CONFLICT (event_id, user_id) DO UPDATE SET status = $3
@@ -82,42 +83,42 @@ func (r *EventMemberRepository) JoinAtomic(eventID, userID uuid.UUID, status str
 	return member, nil
 }
 
-func (r *EventMemberRepository) Leave(eventID, userID uuid.UUID) error {
-	_, err := r.db.Exec(
+func (r *EventMemberRepository) Leave(ctx context.Context, eventID, userID uuid.UUID) error {
+	_, err := r.db.ExecContext(ctx,
 		"DELETE FROM event_members WHERE event_id = $1 AND user_id = $2",
 		eventID, userID,
 	)
 	return err
 }
 
-func (r *EventMemberRepository) IsMember(eventID, userID uuid.UUID) (bool, error) {
+func (r *EventMemberRepository) IsMember(ctx context.Context, eventID, userID uuid.UUID) (bool, error) {
 	var exists bool
-	err := r.db.Get(&exists,
+	err := r.db.GetContext(ctx, &exists,
 		"SELECT EXISTS(SELECT 1 FROM event_members WHERE event_id = $1 AND user_id = $2)",
 		eventID, userID,
 	)
 	return exists, err
 }
 
-func (r *EventMemberRepository) GetStatus(eventID, userID uuid.UUID) (string, error) {
+func (r *EventMemberRepository) GetStatus(ctx context.Context, eventID, userID uuid.UUID) (string, error) {
 	var status string
-	err := r.db.Get(&status,
+	err := r.db.GetContext(ctx, &status,
 		"SELECT status FROM event_members WHERE event_id = $1 AND user_id = $2",
 		eventID, userID,
 	)
 	return status, err
 }
 
-func (r *EventMemberRepository) CountMembers(eventID uuid.UUID) (int, error) {
+func (r *EventMemberRepository) CountMembers(ctx context.Context, eventID uuid.UUID) (int, error) {
 	var count int
-	err := r.db.Get(&count,
+	err := r.db.GetContext(ctx, &count,
 		"SELECT COUNT(*) FROM event_members WHERE event_id = $1 AND status = 'go'",
 		eventID,
 	)
 	return count, err
 }
 
-func (r *EventMemberRepository) GetMembers(eventID uuid.UUID) ([]models.EventMemberUser, error) {
+func (r *EventMemberRepository) GetMembers(ctx context.Context, eventID uuid.UUID) ([]models.EventMemberUser, error) {
 	members := make([]models.EventMemberUser, 0)
 	query := `
 		SELECT em.user_id, u.username, em.status
@@ -125,6 +126,6 @@ func (r *EventMemberRepository) GetMembers(eventID uuid.UUID) ([]models.EventMem
 		JOIN users u ON u.id = em.user_id
 		WHERE em.event_id = $1
 		ORDER BY em.status, u.username`
-	err := r.db.Select(&members, query, eventID)
+	err := r.db.SelectContext(ctx, &members, query, eventID)
 	return members, err
 }

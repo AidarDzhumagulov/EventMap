@@ -22,6 +22,7 @@ func LoggingMiddleware(next http.HandlerFunc) http.HandlerFunc {
 		rw := &responseWriter{ResponseWriter: w, status: http.StatusOK}
 		next(rw, r)
 		slog.Info("request",
+			"request_id", GetRequestID(r.Context()),
 			"method", r.Method,
 			"path", r.URL.Path,
 			"query", r.URL.RawQuery,
@@ -31,11 +32,13 @@ func LoggingMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
+// AuthLogging — стек для защищённых роутов.
+// Порядок снаружи внутрь: RequestID → Recovery → Logging → Auth → handler.
 func AuthLogging(next http.HandlerFunc) http.HandlerFunc {
-	return Recovery(LoggingMiddleware(AuthMiddleware(next)))
+	return RequestID(Recovery(LoggingMiddleware(AuthMiddleware(next))))
 }
 
-// PublicLogging — для незащищённых роутов. Тоже под Recovery.
+// PublicLogging — стек для незащищённых роутов.
 func PublicLogging(next http.HandlerFunc) http.HandlerFunc {
-	return Recovery(LoggingMiddleware(next))
+	return RequestID(Recovery(LoggingMiddleware(next)))
 }

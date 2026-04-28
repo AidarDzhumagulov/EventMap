@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"event-map/internal/models"
@@ -17,15 +18,15 @@ func NewOrganizationRepository(db *sqlx.DB) *OrganizationRepository {
 	return &OrganizationRepository{db: db}
 }
 
-func (r *OrganizationRepository) Create(req models.CreateOrganizationRequest, userID uuid.UUID) (models.Organization, error) {
-	tx, err := r.db.Beginx()
+func (r *OrganizationRepository) Create(ctx context.Context, req models.CreateOrganizationRequest, userID uuid.UUID) (models.Organization, error) {
+	tx, err := r.db.BeginTxx(ctx, nil)
 	if err != nil {
 		return models.Organization{}, err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	var org models.Organization
-	err = tx.Get(&org, `
+	err = tx.GetContext(ctx, &org, `
 		INSERT INTO organizations (name, description, created_by)
 		VALUES ($1, $2, $3)
 		RETURNING id, name, description, is_verified, billing_info, created_at, created_by`,
@@ -34,7 +35,7 @@ func (r *OrganizationRepository) Create(req models.CreateOrganizationRequest, us
 		return models.Organization{}, err
 	}
 
-	_, err = tx.Exec(
+	_, err = tx.ExecContext(ctx,
 		`INSERT INTO business_members (user_id, organization_id, role) VALUES ($1, $2, 'owner')`,
 		userID, org.ID)
 	if err != nil {
@@ -44,18 +45,18 @@ func (r *OrganizationRepository) Create(req models.CreateOrganizationRequest, us
 	return org, tx.Commit()
 }
 
-func (r *OrganizationRepository) IsOrgAdmin(orgID, userID uuid.UUID) bool {
+func (r *OrganizationRepository) IsOrgAdmin(ctx context.Context, orgID, userID uuid.UUID) bool {
 	var exists bool
-	r.db.Get(&exists,
+	_ = r.db.GetContext(ctx, &exists,
 		`SELECT EXISTS(SELECT 1 FROM business_members
 		 WHERE organization_id = $1 AND user_id = $2 AND role IN ('owner', 'admin'))`,
 		orgID, userID)
 	return exists
 }
 
-func (r *OrganizationRepository) GetByID(id uuid.UUID) (models.Organization, error) {
+func (r *OrganizationRepository) GetByID(ctx context.Context, id uuid.UUID) (models.Organization, error) {
 	var org models.Organization
-	err := r.db.Get(&org,
+	err := r.db.GetContext(ctx, &org,
 		`SELECT id, name, description, is_verified, billing_info, created_at, created_by
 		 FROM organizations WHERE id = $1`, id)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -64,7 +65,7 @@ func (r *OrganizationRepository) GetByID(id uuid.UUID) (models.Organization, err
 	return org, err
 }
 
-func (r *OrganizationRepository) GetByUser(userID uuid.UUID) ([]models.Organization, error) {
+func (r *OrganizationRepository) GetByUser(ctx context.Context, userID uuid.UUID) ([]models.Organization, error) {
 	var orgs []models.Organization
 	query := `
 		SELECT o.id, o.name, o.description, o.is_verified, o.billing_info, o.created_at, o.created_by
@@ -72,25 +73,25 @@ func (r *OrganizationRepository) GetByUser(userID uuid.UUID) ([]models.Organizat
 		JOIN business_members bm ON bm.organization_id = o.id
 		WHERE bm.user_id = $1
 		ORDER BY o.created_at DESC`
-	err := r.db.Select(&orgs, query, userID)
+	err := r.db.SelectContext(ctx, &orgs, query, userID)
 	return orgs, err
 }
 
-func (r *OrganizationRepository) Update(id uuid.UUID, req models.UpdateOrganizationRequest, userID uuid.UUID) (models.Organization, error) {
+func (r *OrganizationRepository) Update(ctx context.Context, id uuid.UUID, req models.UpdateOrganizationRequest, userID uuid.UUID) (models.Organization, error) {
 	var org models.Organization
 	query := `
 		UPDATE organizations SET name = $1, description = $2
 		WHERE id = $3 AND created_by = $4
 		RETURNING id, name, description, is_verified, billing_info, created_at, created_by`
-	err := r.db.Get(&org, query, req.Name, req.Description, id, userID)
+	err := r.db.GetContext(ctx, &org, query, req.Name, req.Description, id, userID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return models.Organization{}, ErrNotFound
 	}
 	return org, err
 }
 
-func (r *OrganizationRepository) Delete(id uuid.UUID, userID uuid.UUID) error {
-	result, err := r.db.Exec(
+func (r *OrganizationRepository) Delete(ctx context.Context, id uuid.UUID, userID uuid.UUID) error {
+	result, err := r.db.ExecContext(ctx,
 		`DELETE FROM organizations WHERE id = $1 AND created_by = $2`, id, userID)
 	if err != nil {
 		return err
@@ -102,8 +103,8 @@ func (r *OrganizationRepository) Delete(id uuid.UUID, userID uuid.UUID) error {
 	return nil
 }
 
-func (r *OrganizationRepository) AddMember(orgID uuid.UUID, req models.AddMemberRequest) error {
-	_, err := r.db.Exec(
+func (r *OrganizationRepository) AddMember(ctx context.Context, orgID uuid.UUID, req models.AddMemberRequest) error {
+	_, err := r.db.ExecContext(ctx,
 		`INSERT INTO business_members (user_id, organization_id, role)
 		 VALUES ($1, $2, $3)
 		 ON CONFLICT (user_id, organization_id) DO UPDATE SET role = EXCLUDED.role`,
@@ -111,8 +112,8 @@ func (r *OrganizationRepository) AddMember(orgID uuid.UUID, req models.AddMember
 	return err
 }
 
-func (r *OrganizationRepository) RemoveMember(orgID, userID uuid.UUID) error {
-	result, err := r.db.Exec(
+func (r *OrganizationRepository) RemoveMember(ctx context.Context, orgID, userID uuid.UUID) error {
+	result, err := r.db.ExecContext(ctx,
 		`DELETE FROM business_members WHERE organization_id = $1 AND user_id = $2`, orgID, userID)
 	if err != nil {
 		return err
@@ -124,7 +125,7 @@ func (r *OrganizationRepository) RemoveMember(orgID, userID uuid.UUID) error {
 	return nil
 }
 
-func (r *OrganizationRepository) GetMembers(orgID uuid.UUID) ([]models.BusinessMemberUser, error) {
+func (r *OrganizationRepository) GetMembers(ctx context.Context, orgID uuid.UUID) ([]models.BusinessMemberUser, error) {
 	var members []models.BusinessMemberUser
 	query := `
 		SELECT u.id AS user_id, u.username, u.avatar_url, bm.role, bm.joined_at
@@ -132,6 +133,6 @@ func (r *OrganizationRepository) GetMembers(orgID uuid.UUID) ([]models.BusinessM
 		JOIN users u ON u.id = bm.user_id
 		WHERE bm.organization_id = $1
 		ORDER BY bm.joined_at ASC`
-	err := r.db.Select(&members, query, orgID)
+	err := r.db.SelectContext(ctx, &members, query, orgID)
 	return members, err
 }

@@ -37,7 +37,7 @@ func (h *EventSwipeHandler) Skip(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.swipeRepo.MarkSkipped(userID, eventID); err != nil {
+	if err := h.swipeRepo.MarkSkipped(r.Context(), userID, eventID); err != nil {
 		slog.Error("Skip: db error", "err", err, "user_id", userID, "event_id", eventID)
 		http.Error(w, "Ошибка записи скипа", http.StatusInternalServerError)
 		return

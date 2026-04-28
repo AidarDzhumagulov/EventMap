@@ -52,7 +52,7 @@ func (h *EventMemberHandler) Join(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	member, err := h.memberRepo.JoinAtomic(eventID, userID, status)
+	member, err := h.memberRepo.JoinAtomic(r.Context(), eventID, userID, status)
 	if err != nil {
 		if errors.Is(err, repository.ErrEventFull) {
 			http.Error(w, "Мест нет", http.StatusConflict)
@@ -86,7 +86,7 @@ func (h *EventMemberHandler) GetMyStatus(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	status, err := h.memberRepo.GetStatus(eventID, userID)
+	status, err := h.memberRepo.GetStatus(r.Context(), eventID, userID)
 	if err != nil {
 		// Пользователь не записан — 204 No Content
 		w.WriteHeader(http.StatusNoContent)
@@ -110,7 +110,7 @@ func (h *EventMemberHandler) GetMembers(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	members, err := h.memberRepo.GetMembers(eventID)
+	members, err := h.memberRepo.GetMembers(r.Context(), eventID)
 	if err != nil {
 		http.Error(w, "Ошибка получения участников", http.StatusInternalServerError)
 		return
@@ -139,13 +139,13 @@ func (h *EventMemberHandler) JoinByCode(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	event, err := h.eventRepo.GetByInviteCode(code)
+	event, err := h.eventRepo.GetByInviteCode(r.Context(), code)
 	if err != nil {
 		http.Error(w, "Неверный код приглашения", http.StatusNotFound)
 		return
 	}
 
-	member, err := h.memberRepo.JoinAtomic(event.ID, userID, "go")
+	member, err := h.memberRepo.JoinAtomic(r.Context(), event.ID, userID, "go")
 	if err != nil {
 		if errors.Is(err, repository.ErrEventFull) {
 			http.Error(w, "Мест нет", http.StatusConflict)
@@ -179,7 +179,7 @@ func (h *EventMemberHandler) Leave(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.memberRepo.Leave(eventID, userID); err != nil {
+	if err := h.memberRepo.Leave(r.Context(), eventID, userID); err != nil {
 		http.Error(w, "Ошибка отмены участия", http.StatusInternalServerError)
 		return
 	}

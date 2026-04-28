@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"context"
 	"event-map/internal/models"
 
 	"github.com/jmoiron/sqlx"
@@ -14,15 +15,15 @@ func NewCategoryRepository(db *sqlx.DB) *CategoryRepository {
 	return &CategoryRepository{db: db}
 }
 
-func (r *CategoryRepository) GetAllWithCategories() ([]models.CategoryTypeWithCategories, error) {
+func (r *CategoryRepository) GetAllWithCategories(ctx context.Context) ([]models.CategoryTypeWithCategories, error) {
 	var types []models.CategoryType
-	err := r.db.Select(&types, "SELECT id, alias, name_ru FROM category_types ORDER BY id")
+	err := r.db.SelectContext(ctx, &types, "SELECT id, alias, name_ru FROM category_types ORDER BY id")
 	if err != nil {
 		return nil, err
 	}
 
 	var categories []models.Category
-	err = r.db.Select(&categories, "SELECT id, alias, name_ru, category_type_id FROM categories ORDER BY id")
+	err = r.db.SelectContext(ctx, &categories, "SELECT id, alias, name_ru, category_type_id FROM categories ORDER BY id")
 	if err != nil {
 		return nil, err
 	}

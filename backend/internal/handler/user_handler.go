@@ -51,11 +51,12 @@ func (h *Handler) RegisterUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if h.userRepo.IsExist(registerUser.Email) {
+	ctx := r.Context()
+	if h.userRepo.IsExist(ctx, registerUser.Email) {
 		http.Error(w, "Email already exist", http.StatusBadRequest)
 		return
 	}
-	if h.userRepo.IsUsernameExist(registerUser.Username) {
+	if h.userRepo.IsUsernameExist(ctx, registerUser.Username) {
 		http.Error(w, "Username already exist", http.StatusBadRequest)
 		return
 	}
@@ -75,7 +76,7 @@ func (h *Handler) RegisterUser(w http.ResponseWriter, r *http.Request) {
 		PasswordHash: hash,
 	}
 
-	created, err := h.userRepo.Create(newUser)
+	created, err := h.userRepo.Create(ctx, newUser)
 	if err != nil {
 		slog.Error("RegisterUser: db error", "err", err)
 		http.Error(w, "Ошибка при записи в БД", http.StatusInternalServerError)
@@ -99,8 +100,9 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	req.Email = strings.TrimSpace(strings.ToLower(req.Email))
+	ctx := r.Context()
 
-	user, err := h.userRepo.GetUserByEmail(req.Email)
+	user, err := h.userRepo.GetUserByEmail(ctx, req.Email)
 	if err != nil {
 		// Не палим существование email-а — единое сообщение для обоих случаев.
 		http.Error(w, "Неверный email или пароль", http.StatusUnauthorized)
@@ -116,7 +118,7 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 	// Lazy migration: пароль был в legacy-формате — пересохраняем чистым bcrypt.
 	if needsRehash {
 		if newHash, err := auth.HashPassword(req.Password); err == nil {
-			if err := h.userRepo.UpdatePassword(user.ID, newHash); err != nil {
+			if err := h.userRepo.UpdatePassword(ctx, user.ID, newHash); err != nil {
 				slog.Warn("Login: password rehash failed (non-critical)", "err", err, "user_id", user.ID)
 			}
 		}
@@ -152,7 +154,7 @@ func (h *Handler) Me(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, err := h.userRepo.GetByID(userID)
+	user, err := h.userRepo.GetByID(r.Context(), userID)
 	if err != nil {
 		http.Error(w, "Пользователь не найден", http.StatusNotFound)
 		return
@@ -187,12 +189,13 @@ func (h *Handler) UpdateMe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if h.userRepo.IsUsernameTakenByOther(req.Username, userID) {
+	ctx := r.Context()
+	if h.userRepo.IsUsernameTakenByOther(ctx, req.Username, userID) {
 		http.Error(w, "Имя пользователя уже занято", http.StatusConflict)
 		return
 	}
 
-	user, err := h.userRepo.Update(userID, req.Username, req.AvatarURL)
+	user, err := h.userRepo.Update(ctx, userID, req.Username, req.AvatarURL)
 	if err != nil {
 		http.Error(w, "Ошибка обновления профиля", http.StatusInternalServerError)
 		return

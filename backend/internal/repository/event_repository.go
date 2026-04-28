@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"context"
 	"crypto/rand"
 	"database/sql"
 	"errors"
@@ -81,7 +82,7 @@ func NewEventRepository(db *sqlx.DB) *EventRepository {
 	return &EventRepository{db: db}
 }
 
-func (r *EventRepository) Create(req models.CreateEventRequest, userID uuid.UUID) (models.Event, error) {
+func (r *EventRepository) Create(ctx context.Context, req models.CreateEventRequest, userID uuid.UUID) (models.Event, error) {
 	var inviteCode *string
 	if req.IsPrivate {
 		code := generateInviteCode()
@@ -100,7 +101,7 @@ func (r *EventRepository) Create(req models.CreateEventRequest, userID uuid.UUID
 		) RETURNING id`
 
 	var id string
-	err := r.db.QueryRowx(query,
+	err := r.db.QueryRowxContext(ctx, query,
 		req.Title, req.Description, req.CoverURL, req.Lat, req.Lon, req.CityName,
 		req.StartTime, req.EndTime, req.IsPrivate, req.MaxMembers, req.CategoryID, req.LocationID, userID,
 		inviteCode,
@@ -109,13 +110,13 @@ func (r *EventRepository) Create(req models.CreateEventRequest, userID uuid.UUID
 		return models.Event{}, err
 	}
 	eventID, _ := uuid.Parse(id)
-	return r.GetByID(eventID)
+	return r.GetByID(ctx, eventID)
 }
 
-func (r *EventRepository) GetByInviteCode(code string) (models.Event, error) {
+func (r *EventRepository) GetByInviteCode(ctx context.Context, code string) (models.Event, error) {
 	var event models.Event
 	query := eventSelect + ` WHERE e.invite_code = $1 AND e.deleted_at IS NULL`
-	err := r.db.Get(&event, query, code)
+	err := r.db.GetContext(ctx, &event, query, code)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return models.Event{}, ErrNotFound
@@ -125,7 +126,7 @@ func (r *EventRepository) GetByInviteCode(code string) (models.Event, error) {
 	return computeStatus(event), nil
 }
 
-func (r *EventRepository) GetNearby(lat, lon, radiusMeters float64, limit int) ([]models.Event, error) {
+func (r *EventRepository) GetNearby(ctx context.Context, lat, lon, radiusMeters float64, limit int) ([]models.Event, error) {
 	var events []models.Event
 	query := eventSelect + `
 		WHERE e.deleted_at IS NULL
@@ -136,14 +137,14 @@ func (r *EventRepository) GetNearby(lat, lon, radiusMeters float64, limit int) (
 		      )
 		ORDER BY e.geom <-> ST_SetSRID(ST_MakePoint($2, $1), 4326)
 		LIMIT $4`
-	err := r.db.Select(&events, query, lat, lon, radiusMeters, limit)
+	err := r.db.SelectContext(ctx, &events, query, lat, lon, radiusMeters, limit)
 	if err != nil {
 		return nil, err
 	}
 	return computeStatuses(events), nil
 }
 
-func (r *EventRepository) GetAll(cityName string, status string, search string, limit int, offset int) ([]models.Event, error) {
+func (r *EventRepository) GetAll(ctx context.Context, cityName string, status string, search string, limit int, offset int) ([]models.Event, error) {
 	var events []models.Event
 
 	query := eventSelect + `
@@ -154,29 +155,29 @@ func (r *EventRepository) GetAll(cityName string, status string, search string, 
 		ORDER BY e.start_time ASC
 		LIMIT $4 OFFSET $5`
 
-	err := r.db.Select(&events, query, cityName, status, search, limit, offset)
+	err := r.db.SelectContext(ctx, &events, query, cityName, status, search, limit, offset)
 	if err != nil {
 		return nil, err
 	}
 	return computeStatuses(events), nil
 }
 
-func (r *EventRepository) GetByUserID(userID uuid.UUID) ([]models.Event, error) {
+func (r *EventRepository) GetByUserID(ctx context.Context, userID uuid.UUID) ([]models.Event, error) {
 	var events []models.Event
 	query := eventSelect + `
 		WHERE e.deleted_at IS NULL AND e.created_by = $1
 		ORDER BY e.start_time DESC`
-	err := r.db.Select(&events, query, userID)
+	err := r.db.SelectContext(ctx, &events, query, userID)
 	if err != nil {
 		return nil, err
 	}
 	return computeStatuses(events), nil
 }
 
-func (r *EventRepository) GetByID(id uuid.UUID) (models.Event, error) {
+func (r *EventRepository) GetByID(ctx context.Context, id uuid.UUID) (models.Event, error) {
 	var event models.Event
 	query := eventSelect + ` WHERE e.id = $1 AND e.deleted_at IS NULL`
-	err := r.db.Get(&event, query, id)
+	err := r.db.GetContext(ctx, &event, query, id)
 	if err != nil {
 		return models.Event{}, err
 	}
@@ -193,7 +194,7 @@ func (r *EventRepository) GetByID(id uuid.UUID) (models.Event, error) {
 //
 // Сортировка ORDER BY RANDOM() для разнообразия. На больших таблицах
 // можно будет заменить на TABLESAMPLE — пока MVP, города < 10k событий.
-func (r *EventRepository) GetFeed(userID uuid.UUID, cityName string, limit int) ([]models.Event, error) {
+func (r *EventRepository) GetFeed(ctx context.Context, userID uuid.UUID, cityName string, limit int) ([]models.Event, error) {
 	events := make([]models.Event, 0)
 	query := eventSelect + `
 		WHERE e.deleted_at IS NULL
@@ -217,14 +218,14 @@ func (r *EventRepository) GetFeed(userID uuid.UUID, cityName string, limit int) 
 		ORDER BY RANDOM()
 		LIMIT $3`
 
-	err := r.db.Select(&events, query, cityName, userID, limit)
+	err := r.db.SelectContext(ctx, &events, query, cityName, userID, limit)
 	if err != nil {
 		return nil, err
 	}
 	return computeStatuses(events), nil
 }
 
-func (r *EventRepository) Update(id uuid.UUID, req models.UpdateEventRequest, userID uuid.UUID) (models.Event, error) {
+func (r *EventRepository) Update(ctx context.Context, id uuid.UUID, req models.UpdateEventRequest, userID uuid.UUID) (models.Event, error) {
 	query := `
 		UPDATE events SET
 			title = $1,
@@ -241,7 +242,7 @@ func (r *EventRepository) Update(id uuid.UUID, req models.UpdateEventRequest, us
 		RETURNING id`
 
 	var updatedID string
-	err := r.db.QueryRowx(query,
+	err := r.db.QueryRowxContext(ctx, query,
 		req.Title, req.Description, req.CoverURL, req.StartTime, req.EndTime,
 		req.IsPrivate, req.MaxMembers, req.CategoryID,
 		userID, id,
@@ -253,11 +254,11 @@ func (r *EventRepository) Update(id uuid.UUID, req models.UpdateEventRequest, us
 		return models.Event{}, err
 	}
 	eventID, _ := uuid.Parse(updatedID)
-	return r.GetByID(eventID)
+	return r.GetByID(ctx, eventID)
 }
 
-func (r *EventRepository) Delete(id uuid.UUID, userID uuid.UUID) error {
-	result, err := r.db.Exec(
+func (r *EventRepository) Delete(ctx context.Context, id uuid.UUID, userID uuid.UUID) error {
+	result, err := r.db.ExecContext(ctx,
 		`UPDATE events SET deleted_at = now(), deleted_by = $1
 		 WHERE id = $2 AND created_by = $1 AND deleted_at IS NULL`,
 		userID, id,

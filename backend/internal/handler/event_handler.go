@@ -48,7 +48,7 @@ func (h *EventHandler) CreateEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	event, err := h.eventRepo.Create(req, userID)
+	event, err := h.eventRepo.Create(r.Context(), req, userID)
 	if err != nil {
 		slog.Error("CreateEvent: db error", "err", err, "user_id", userID)
 		http.Error(w, "Ошибка создания события", http.StatusInternalServerError)
@@ -82,7 +82,7 @@ func (h *EventHandler) GetEvents(w http.ResponseWriter, r *http.Request) {
 		offset = v
 	}
 
-	events, err := h.eventRepo.GetAll(city, status, search, limit, offset)
+	events, err := h.eventRepo.GetAll(r.Context(), city, status, search, limit, offset)
 	if err != nil {
 		slog.Error("GetEvents: db error", "err", err, "city", city)
 		http.Error(w, "Ошибка получения событий", http.StatusInternalServerError)
@@ -123,7 +123,7 @@ func (h *EventHandler) GetFeed(w http.ResponseWriter, r *http.Request) {
 		limit = v
 	}
 
-	events, err := h.eventRepo.GetFeed(userID, city, limit)
+	events, err := h.eventRepo.GetFeed(r.Context(), userID, city, limit)
 	if err != nil {
 		slog.Error("GetFeed: db error", "err", err, "user_id", userID, "city", city)
 		http.Error(w, "Ошибка получения ленты", http.StatusInternalServerError)
@@ -147,7 +147,7 @@ func (h *EventHandler) GetMyEvents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	events, err := h.eventRepo.GetByUserID(userID)
+	events, err := h.eventRepo.GetByUserID(r.Context(), userID)
 	if err != nil {
 		slog.Error("GetMyEvents: db error", "err", err, "user_id", userID)
 		http.Error(w, "Ошибка получения событий", http.StatusInternalServerError)
@@ -190,7 +190,7 @@ func (h *EventHandler) UpdateEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	event, err := h.eventRepo.Update(id, req, userID)
+	event, err := h.eventRepo.Update(r.Context(), id, req, userID)
 	if err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
 			http.Error(w, "Событие не найдено или нет прав", http.StatusForbidden)
@@ -224,7 +224,7 @@ func (h *EventHandler) DeleteEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.eventRepo.Delete(id, userID); err != nil {
+	if err := h.eventRepo.Delete(r.Context(), id, userID); err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
 			http.Error(w, "Событие не найдено или нет прав", http.StatusForbidden)
 			return
@@ -250,7 +250,7 @@ func (h *EventHandler) GetEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	event, err := h.eventRepo.GetByID(id)
+	event, err := h.eventRepo.GetByID(r.Context(), id)
 	if err != nil {
 		slog.Error("GetEvent: db error", "err", err, "id", id)
 		http.Error(w, "Событие не найдено", http.StatusNotFound)
@@ -288,7 +288,7 @@ func (h *EventHandler) GetNearby(w http.ResponseWriter, r *http.Request) {
 		limit = v
 	}
 
-	events, err := h.eventRepo.GetNearby(lat, lon, radius, limit)
+	events, err := h.eventRepo.GetNearby(r.Context(), lat, lon, radius, limit)
 	if err != nil {
 		slog.Error("GetNearby: db error", "err", err, "lat", lat, "lon", lon, "radius", radius)
 		http.Error(w, "Ошибка получения событий", http.StatusInternalServerError)
