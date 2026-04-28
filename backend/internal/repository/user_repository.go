@@ -89,3 +89,10 @@ func (r *UserRepository) Update(id uuid.UUID, username string, avatarURL *string
 	)
 	return user, err
 }
+
+// UpdatePassword — для lazy миграции старых SHA256+bcrypt хэшей на чистый bcrypt
+// при первом успешном логине, и для смены пароля юзером.
+func (r *UserRepository) UpdatePassword(id uuid.UUID, newHash string) error {
+	_, err := r.db.Exec("UPDATE users SET password = $1 WHERE id = $2", newHash, id)
+	return err
+}

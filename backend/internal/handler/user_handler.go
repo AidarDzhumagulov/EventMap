@@ -1,20 +1,15 @@
 package handler
 
 import (
-	"crypto/sha256"
 	"encoding/json"
+	"errors"
 	"event-map/internal/auth"
 	"event-map/internal/middleware"
 	"event-map/internal/models"
 	"event-map/internal/repository"
 	"log/slog"
 	"net/http"
-	"os"
 	"strings"
-
-	"github.com/golang-jwt/jwt/v5"
-	"github.com/google/uuid"
-	"golang.org/x/crypto/bcrypt"
 )
 
 type Handler struct {
@@ -39,15 +34,20 @@ func (h *Handler) RegisterUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var registerUser models.RegisterUser
-	var newUser models.User
-
 	if err := json.NewDecoder(r.Body).Decode(&registerUser); err != nil {
 		http.Error(w, "Неверный формат JSON", http.StatusBadRequest)
 		return
 	}
 
+	registerUser.Email = strings.TrimSpace(strings.ToLower(registerUser.Email))
+	registerUser.Username = strings.TrimSpace(registerUser.Username)
+
 	if registerUser.Email == "" || registerUser.Username == "" || registerUser.Password == "" {
 		http.Error(w, "email, username и password обязательны", http.StatusBadRequest)
+		return
+	}
+	if len(registerUser.Password) < 8 {
+		http.Error(w, "Пароль должен быть не короче 8 символов", http.StatusBadRequest)
 		return
 	}
 
@@ -55,27 +55,25 @@ func (h *Handler) RegisterUser(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Email already exist", http.StatusBadRequest)
 		return
 	}
-
 	if h.userRepo.IsUsernameExist(registerUser.Username) {
 		http.Error(w, "Username already exist", http.StatusBadRequest)
 		return
 	}
 
-	salt := os.Getenv("SALT")
-
-	digest := sha256.Sum256([]byte(registerUser.Password + salt))
-	hash, err := bcrypt.GenerateFromPassword(digest[:], bcrypt.DefaultCost)
-
+	hash, err := auth.HashPassword(registerUser.Password)
 	if err != nil {
-		http.Error(w, "Ошибка при хэшировании пароля", http.StatusBadRequest)
+		slog.Error("RegisterUser: hash error", "err", err)
+		http.Error(w, "Ошибка при хэшировании пароля", http.StatusInternalServerError)
 		return
 	}
 
-	newUser.PasswordHash = string(hash)
-	newUser.Rating = 0.0
-	newUser.Username = registerUser.Username
-	newUser.Email = registerUser.Email
-	newUser.Role = "user"
+	newUser := models.User{
+		Email:        registerUser.Email,
+		Username:     registerUser.Username,
+		Role:         "user",
+		Rating:       0,
+		PasswordHash: hash,
+	}
 
 	created, err := h.userRepo.Create(newUser)
 	if err != nil {
@@ -86,8 +84,7 @@ func (h *Handler) RegisterUser(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(created)
-
+	_ = json.NewEncoder(w).Encode(created)
 }
 
 func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
@@ -96,29 +93,33 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var LoginUser models.LoginUser
-
-	err := json.NewDecoder(r.Body).Decode(&LoginUser)
-
-	if err != nil {
+	var req models.LoginUser
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "Неверный формат JSON", http.StatusBadRequest)
 		return
 	}
+	req.Email = strings.TrimSpace(strings.ToLower(req.Email))
 
-	user, err := h.userRepo.GetUserByEmail(LoginUser.Email)
+	user, err := h.userRepo.GetUserByEmail(req.Email)
 	if err != nil {
-		http.Error(w, "Такого пользователя не существует", http.StatusUnauthorized)
+		// Не палим существование email-а — единое сообщение для обоих случаев.
+		http.Error(w, "Неверный email или пароль", http.StatusUnauthorized)
 		return
 	}
 
-	salt := os.Getenv("SALT")
-
-	digest := sha256.Sum256([]byte(LoginUser.Password + salt))
-	err = bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), digest[:])
-
+	needsRehash, err := auth.VerifyPassword(user.PasswordHash, req.Password)
 	if err != nil {
-		http.Error(w, "Не верный пароль", http.StatusUnauthorized)
+		http.Error(w, "Неверный email или пароль", http.StatusUnauthorized)
 		return
+	}
+
+	// Lazy migration: пароль был в legacy-формате — пересохраняем чистым bcrypt.
+	if needsRehash {
+		if newHash, err := auth.HashPassword(req.Password); err == nil {
+			if err := h.userRepo.UpdatePassword(user.ID, newHash); err != nil {
+				slog.Warn("Login: password rehash failed (non-critical)", "err", err, "user_id", user.ID)
+			}
+		}
 	}
 
 	accessToken, err := auth.GenerateAccessToken(user.ID)
@@ -126,7 +127,6 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Ошибка при генерации access_token", http.StatusInternalServerError)
 		return
 	}
-
 	refreshToken, err := auth.GenerateRefreshToken(user.ID)
 	if err != nil {
 		http.Error(w, "Ошибка при генерации refresh_token", http.StatusInternalServerError)
@@ -134,8 +134,7 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(tokenResponse{
+	_ = json.NewEncoder(w).Encode(tokenResponse{
 		AccessToken:  accessToken,
 		RefreshToken: refreshToken,
 	})
@@ -160,11 +159,10 @@ func (h *Handler) Me(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(user)
+	_ = json.NewEncoder(w).Encode(user)
 }
 
-// PATCH /me/update — обновление профиля текущего пользователя
+// PATCH /me/update — обновление профиля текущего пользователя.
 func (h *Handler) UpdateMe(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPatch {
 		http.Error(w, "Разрешен только PATCH метод", http.StatusMethodNotAllowed)
@@ -183,6 +181,7 @@ func (h *Handler) UpdateMe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	req.Username = strings.TrimSpace(req.Username)
 	if req.Username == "" {
 		http.Error(w, "username обязателен", http.StatusBadRequest)
 		return
@@ -200,7 +199,7 @@ func (h *Handler) UpdateMe(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(user)
+	_ = json.NewEncoder(w).Encode(user)
 }
 
 func (h *Handler) Refresh(w http.ResponseWriter, r *http.Request) {
@@ -210,36 +209,22 @@ func (h *Handler) Refresh(w http.ResponseWriter, r *http.Request) {
 	}
 
 	authHeader := r.Header.Get("Authorization")
-	tokenString := strings.TrimPrefix(authHeader, "Bearer ")
-	if tokenString == "" {
+	if !strings.HasPrefix(authHeader, "Bearer ") {
 		http.Error(w, "Refresh token required", http.StatusUnauthorized)
 		return
 	}
+	tokenString := strings.TrimPrefix(authHeader, "Bearer ")
 
-	secretKey := os.Getenv("JWT_SECRET")
-	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
-		return []byte(secretKey), nil
-	})
-	if err != nil || !token.Valid {
-		http.Error(w, "Invalid refresh token", http.StatusUnauthorized)
-		return
-	}
-
-	claims, ok := token.Claims.(jwt.MapClaims)
-	if !ok {
-		http.Error(w, "Invalid token claims", http.StatusUnauthorized)
-		return
-	}
-
-	userIDStr, ok := claims["user_id"].(string)
-	if !ok {
-		http.Error(w, "Invalid token claims", http.StatusUnauthorized)
-		return
-	}
-
-	userID, err := uuid.Parse(userIDStr)
+	// Критично: проверяем именно refresh-токен. Иначе access-токен можно
+	// использовать как refresh — и при утечке access юзера компрометация
+	// бесконечная.
+	userID, err := auth.ParseToken(tokenString, auth.TokenTypeRefresh)
 	if err != nil {
-		http.Error(w, "Invalid user id", http.StatusUnauthorized)
+		if errors.Is(err, auth.ErrInvalidToken) {
+			http.Error(w, "Invalid refresh token", http.StatusUnauthorized)
+			return
+		}
+		http.Error(w, "Invalid refresh token", http.StatusUnauthorized)
 		return
 	}
 
@@ -248,7 +233,6 @@ func (h *Handler) Refresh(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Ошибка при генерации access_token", http.StatusInternalServerError)
 		return
 	}
-
 	refreshToken, err := auth.GenerateRefreshToken(userID)
 	if err != nil {
 		http.Error(w, "Ошибка при генерации refresh_token", http.StatusInternalServerError)
@@ -256,8 +240,7 @@ func (h *Handler) Refresh(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(tokenResponse{
+	_ = json.NewEncoder(w).Encode(tokenResponse{
 		AccessToken:  accessToken,
 		RefreshToken: refreshToken,
 	})

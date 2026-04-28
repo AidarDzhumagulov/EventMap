@@ -25,7 +25,11 @@ func generateInviteCode() string {
 
 var ErrNotFound = errors.New("not found")
 
-// базовый SELECT — явный список колонок чтобы исключить geom (PostGIS тип, несовместим с sqlx scan)
+// базовый SELECT — явный список колонок чтобы исключить geom (PostGIS тип, несовместим с sqlx scan).
+//
+// Performance: members_count считается через JOIN с GROUP BY-подзапросом, а не
+// корреллированный subquery на каждое событие. На странице с N событиями это
+// 1 hash-aggregate вместо N COUNT-ов. Без триггеров и денормализации.
 const eventSelect = `
 	SELECT e.id, e.title, e.description, e.cover_url,
 	       e.lat, e.lon, e.city_name,
@@ -37,10 +41,16 @@ const eventSelect = `
 	       c.name_ru AS category_name,
 	       c.alias   AS category_alias,
 	       e.invite_code,
-	       (SELECT COUNT(*) FROM event_members WHERE event_id = e.id AND status = 'go')::int AS members_count
+	       COALESCE(mc.cnt, 0)::int AS members_count
 	FROM events e
 	LEFT JOIN locations l ON l.id = e.location_id
-	LEFT JOIN categories c ON c.id = e.category_id`
+	LEFT JOIN categories c ON c.id = e.category_id
+	LEFT JOIN (
+	    SELECT event_id, COUNT(*) AS cnt
+	    FROM event_members
+	    WHERE status = 'go'
+	    GROUP BY event_id
+	) mc ON mc.event_id = e.id`
 
 // computeStatus вычисляет актуальный статус события по времени
 func computeStatus(e models.Event) models.Event {

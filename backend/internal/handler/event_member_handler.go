@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/json"
+	"errors"
 	"event-map/internal/middleware"
 	"event-map/internal/repository"
 	"net/http"
@@ -51,31 +52,12 @@ func (h *EventMemberHandler) Join(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	event, err := h.eventRepo.GetByID(eventID)
+	member, err := h.memberRepo.JoinAtomic(eventID, userID, status)
 	if err != nil {
-		http.Error(w, "Событие не найдено", http.StatusNotFound)
-		return
-	}
-
-	// Проверяем лимит только если пользователь хочет занять место (status="go")
-	// и ещё не имеет статус "go" (иначе смена "go"→"think" блокировалась бы при полном событии)
-	if event.MaxMembers != nil && status == "go" {
-		currentStatus, _ := h.memberRepo.GetStatus(eventID, userID)
-		if currentStatus != "go" {
-			count, err := h.memberRepo.CountMembers(eventID)
-			if err != nil {
-				http.Error(w, "Ошибка проверки мест", http.StatusInternalServerError)
-				return
-			}
-			if count >= *event.MaxMembers {
-				http.Error(w, "Мест нет", http.StatusConflict)
-				return
-			}
+		if errors.Is(err, repository.ErrEventFull) {
+			http.Error(w, "Мест нет", http.StatusConflict)
+			return
 		}
-	}
-
-	member, err := h.memberRepo.Join(eventID, userID, status)
-	if err != nil {
 		http.Error(w, "Ошибка записи на событие", http.StatusInternalServerError)
 		return
 	}
@@ -163,20 +145,12 @@ func (h *EventMemberHandler) JoinByCode(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	if event.MaxMembers != nil {
-		count, err := h.memberRepo.CountMembers(event.ID)
-		if err != nil {
-			http.Error(w, "Ошибка проверки мест", http.StatusInternalServerError)
-			return
-		}
-		if count >= *event.MaxMembers {
+	member, err := h.memberRepo.JoinAtomic(event.ID, userID, "go")
+	if err != nil {
+		if errors.Is(err, repository.ErrEventFull) {
 			http.Error(w, "Мест нет", http.StatusConflict)
 			return
 		}
-	}
-
-	member, err := h.memberRepo.Join(event.ID, userID, "go")
-	if err != nil {
 		http.Error(w, "Ошибка записи на событие", http.StatusInternalServerError)
 		return
 	}

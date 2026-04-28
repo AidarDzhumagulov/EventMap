@@ -32,5 +32,10 @@ func LoggingMiddleware(next http.HandlerFunc) http.HandlerFunc {
 }
 
 func AuthLogging(next http.HandlerFunc) http.HandlerFunc {
-	return LoggingMiddleware(AuthMiddleware(next))
+	return Recovery(LoggingMiddleware(AuthMiddleware(next)))
+}
+
+// PublicLogging — для незащищённых роутов. Тоже под Recovery.
+func PublicLogging(next http.HandlerFunc) http.HandlerFunc {
+	return Recovery(LoggingMiddleware(next))
 }

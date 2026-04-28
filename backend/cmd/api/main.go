@@ -1,7 +1,10 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"event-map/core"
+	"event-map/internal/auth"
 	"event-map/internal/handler"
 	"event-map/internal/middleware"
 	"event-map/internal/repository"
@@ -9,7 +12,9 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"os/signal"
 	"strconv"
+	"syscall"
 	"time"
 
 	"github.com/joho/godotenv"
@@ -24,10 +29,28 @@ func main() {
 		Level: slog.LevelDebug,
 	})))
 
+	// Падаем сразу если JWT_SECRET не задан или короткий — чтобы не выкатить
+	// прод с дырой "любой может подделать токен".
+	auth.MustInit()
+
 	poolSize, _ := strconv.Atoi(os.Getenv("DB_POOL_SIZE"))
 	maxOverflow, _ := strconv.Atoi(os.Getenv("DB_MAX_OVERFLOW"))
 	poolRecycle, _ := strconv.Atoi(os.Getenv("DB_POOL_RECYCLE"))
 	poolTimeout, _ := strconv.Atoi(os.Getenv("DB_POOL_TIMEOUT"))
+
+	// Sane defaults — если env не задан, не получим pool size = 0.
+	if poolSize <= 0 {
+		poolSize = 10
+	}
+	if maxOverflow < 0 {
+		maxOverflow = 5
+	}
+	if poolRecycle <= 0 {
+		poolRecycle = 3600
+	}
+	if poolTimeout <= 0 {
+		poolTimeout = 300
+	}
 
 	db, err := core.NewDB(core.DBConfig{
 		Host:         os.Getenv("DB_HOST"),
@@ -45,10 +68,15 @@ func main() {
 	}
 	defer db.Close()
 
-	auth := middleware.AuthLogging
-	pub := middleware.LoggingMiddleware
+	mux := http.NewServeMux()
+	authMW := middleware.AuthLogging
+	pub := middleware.PublicLogging
 
-	http.HandleFunc("/ping", pub(pingHandler))
+	// Rate limiter для /login и /register — защита от брутфорса и спама.
+	// 0.2 rps = 1 запрос в 5 сек; burst 5 = можно 5 запросов подряд, потом ждать.
+	authLimiter := middleware.NewIPLimiter(0.2, 5)
+
+	mux.HandleFunc("/ping", pub(pingHandler(db)))
 
 	storage := core.NewStorage()
 
@@ -56,47 +84,47 @@ func main() {
 	h := handler.NewHandler(userRepo)
 	uploadHandler := handler.NewUploadHandler(storage)
 
-	http.HandleFunc("/upload", auth(uploadHandler.Upload))
-	http.HandleFunc("/register", pub(h.RegisterUser))
-	http.HandleFunc("/login", pub(h.Login))
-	http.HandleFunc("/refresh", pub(h.Refresh))
-	http.HandleFunc("/me", auth(h.Me))
-	http.HandleFunc("/me/update", auth(h.UpdateMe))
+	mux.HandleFunc("/upload", authMW(uploadHandler.Upload))
+	mux.HandleFunc("/register", pub(authLimiter.Middleware(h.RegisterUser)))
+	mux.HandleFunc("/login", pub(authLimiter.Middleware(h.Login)))
+	mux.HandleFunc("/refresh", pub(authLimiter.Middleware(h.Refresh)))
+	mux.HandleFunc("/me", authMW(h.Me))
+	mux.HandleFunc("/me/update", authMW(h.UpdateMe))
 
 	categoryRepo := repository.NewCategoryRepository(db)
 	categoryHandler := handler.NewCategoryHandler(categoryRepo)
-	http.HandleFunc("/categories", pub(categoryHandler.GetCategories))
+	mux.HandleFunc("/categories", pub(categoryHandler.GetCategories))
 
 	locationRepo := repository.NewLocationRepository(db)
 	locationHandler := handler.NewLocationHandler(locationRepo)
-	http.HandleFunc("/locations/create", auth(locationHandler.CreateLocation))
+	mux.HandleFunc("/locations/create", authMW(locationHandler.CreateLocation))
 
 	eventRepo := repository.NewEventRepository(db)
 	eventHandler := handler.NewEventHandler(eventRepo)
-	http.HandleFunc("/events", auth(eventHandler.GetEvents))
-	http.HandleFunc("/events/create", auth(eventHandler.CreateEvent))
-	http.HandleFunc("/events/detail", auth(eventHandler.GetEvent))
-	http.HandleFunc("/events/feed", auth(eventHandler.GetFeed))
-	http.HandleFunc("/events/my", auth(eventHandler.GetMyEvents))
-	http.HandleFunc("/events/nearby", auth(eventHandler.GetNearby))
-	http.HandleFunc("/events/update", auth(eventHandler.UpdateEvent))
-	http.HandleFunc("/events/delete", auth(eventHandler.DeleteEvent))
+	mux.HandleFunc("/events", authMW(eventHandler.GetEvents))
+	mux.HandleFunc("/events/create", authMW(eventHandler.CreateEvent))
+	mux.HandleFunc("/events/detail", authMW(eventHandler.GetEvent))
+	mux.HandleFunc("/events/feed", authMW(eventHandler.GetFeed))
+	mux.HandleFunc("/events/my", authMW(eventHandler.GetMyEvents))
+	mux.HandleFunc("/events/nearby", authMW(eventHandler.GetNearby))
+	mux.HandleFunc("/events/update", authMW(eventHandler.UpdateEvent))
+	mux.HandleFunc("/events/delete", authMW(eventHandler.DeleteEvent))
 
 	swipeRepo := repository.NewEventSwipeRepository(db)
 	swipeHandler := handler.NewEventSwipeHandler(swipeRepo)
-	http.HandleFunc("/events/skip", auth(swipeHandler.Skip))
+	mux.HandleFunc("/events/skip", authMW(swipeHandler.Skip))
 
 	memberRepo := repository.NewEventMemberRepository(db)
 	memberHandler := handler.NewEventMemberHandler(memberRepo, eventRepo)
-	http.HandleFunc("/events/join", auth(memberHandler.Join))
-	http.HandleFunc("/events/join-by-code", auth(memberHandler.JoinByCode))
-	http.HandleFunc("/events/leave", auth(memberHandler.Leave))
-	http.HandleFunc("/events/my-status", auth(memberHandler.GetMyStatus))
-	http.HandleFunc("/events/members", auth(memberHandler.GetMembers))
+	mux.HandleFunc("/events/join", authMW(memberHandler.Join))
+	mux.HandleFunc("/events/join-by-code", authMW(memberHandler.JoinByCode))
+	mux.HandleFunc("/events/leave", authMW(memberHandler.Leave))
+	mux.HandleFunc("/events/my-status", authMW(memberHandler.GetMyStatus))
+	mux.HandleFunc("/events/members", authMW(memberHandler.GetMembers))
 
 	savedRepo := repository.NewSavedEventRepository(db)
 	savedHandler := handler.NewSavedEventHandler(savedRepo)
-	http.HandleFunc("/events/save", auth(func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/events/save", authMW(func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodPost:
 			savedHandler.Save(w, r)
@@ -106,17 +134,17 @@ func main() {
 			http.Error(w, "Метод не поддерживается", http.StatusMethodNotAllowed)
 		}
 	}))
-	http.HandleFunc("/events/saved", auth(savedHandler.GetSaved))
-	http.HandleFunc("/events/is-saved", auth(savedHandler.IsSaved))
+	mux.HandleFunc("/events/saved", authMW(savedHandler.GetSaved))
+	mux.HandleFunc("/events/is-saved", authMW(savedHandler.IsSaved))
 
 	orgRepo := repository.NewOrganizationRepository(db)
 	orgHandler := handler.NewOrganizationHandler(orgRepo)
-	http.HandleFunc("/organizations/create", auth(orgHandler.Create))
-	http.HandleFunc("/organizations/my", auth(orgHandler.GetMy))
-	http.HandleFunc("/organizations/detail", auth(orgHandler.GetByID))
-	http.HandleFunc("/organizations/update", auth(orgHandler.Update))
-	http.HandleFunc("/organizations/delete", auth(orgHandler.Delete))
-	http.HandleFunc("/organizations/members", auth(func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/organizations/create", authMW(orgHandler.Create))
+	mux.HandleFunc("/organizations/my", authMW(orgHandler.GetMy))
+	mux.HandleFunc("/organizations/detail", authMW(orgHandler.GetByID))
+	mux.HandleFunc("/organizations/update", authMW(orgHandler.Update))
+	mux.HandleFunc("/organizations/delete", authMW(orgHandler.Delete))
+	mux.HandleFunc("/organizations/members", authMW(func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodGet:
 			orgHandler.GetMembers(w, r)
@@ -129,14 +157,56 @@ func main() {
 		}
 	}))
 
-	slog.Info("Event Map API запущен", "port", 8080)
-	if err := http.ListenAndServe(":8080", nil); err != nil {
-		log.Fatalln("Ошибка запуска сервера:", err)
+	srv := &http.Server{
+		Addr:    ":8080",
+		Handler: mux,
+		// Защита от Slowloris и подобных DoS-атак.
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       30 * time.Second,
+		WriteTimeout:      30 * time.Second,
+		IdleTimeout:       60 * time.Second,
 	}
+
+	// Server в фоне.
+	serverErr := make(chan error, 1)
+	go func() {
+		slog.Info("Event Map API запущен", "addr", srv.Addr)
+		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			serverErr <- err
+		}
+	}()
+
+	// Ждём SIGTERM/SIGINT или ошибку запуска.
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, syscall.SIGTERM, syscall.SIGINT)
+
+	select {
+	case err := <-serverErr:
+		log.Fatalln("server failed:", err)
+	case sig := <-sigCh:
+		slog.Info("shutdown initiated", "signal", sig.String())
+	}
+
+	// Graceful shutdown — даём 30 сек активным запросам завершиться.
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		slog.Error("shutdown failed", "err", err)
+	}
+	slog.Info("shutdown complete")
 }
 
-func pingHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(`{"status": "ok", "message": "Event Map API is alive!"}`))
+// pingHandler — health check, проверяет и БД тоже.
+// Без проверки БД k8s не понимает что под нездоров если postgres упал.
+func pingHandler(db interface{ Ping() error }) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if err := db.Ping(); err != nil {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			_, _ = w.Write([]byte(`{"status":"down","reason":"db unreachable"}`))
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"status":"ok"}`))
+	}
 }

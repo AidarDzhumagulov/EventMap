@@ -1,3 +1,5 @@
+CREATE EXTENSION IF NOT EXISTS postgis;
+
 CREATE TABLE users (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     username TEXT NOT NULL UNIQUE,
@@ -57,6 +59,12 @@ CREATE TABLE event_members (
     status     member_status NOT NULL DEFAULT 'go',
     PRIMARY KEY (event_id, user_id)
 );
+
+-- Partial index для быстрого подсчёта members_count в eventSelect.
+-- Покрывает только status='go' (90%+ записей), компактнее full index.
+CREATE INDEX idx_event_members_event_go
+    ON event_members(event_id)
+    WHERE status = 'go';
 
 CREATE TABLE saved_events (
     event_id   UUID NOT NULL REFERENCES events(id),

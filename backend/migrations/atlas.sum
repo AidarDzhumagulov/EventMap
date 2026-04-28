@@ -1,4 +1,4 @@
-h1:HdqcnYOQI7DTtqMHkl5e+CR6GzJKSh2r+/ATe/tZUGY=
+h1:PjYyEJRc+JORSSOeMA7aBlJOS4eJ0Irnd3ut3Z4iGyo=
 20260324104427_create_users_table.sql h1:9HnC2BeLgIlVj5smAqKbUjylJxlKIy5VJ7VKnkp7U4s=
 20260324105800_add_uuid_default.sql h1:slG1m1U/tQRM+skUIHiykvEdYkQg1uct4knac0vt5WA=
 20260324111738_add_password.sql h1:f64mP3U9mPGzdB7xmWEM4bLf7I81ev12CfW4VIeAg9E=
@@ -15,3 +15,4 @@ h1:HdqcnYOQI7DTtqMHkl5e+CR6GzJKSh2r+/ATe/tZUGY=
 20260427120000_add_organizations.sql h1:Wrqx30aQartTid/oxp20hFPzqtc1GSOh5n7s8srHgXI=
 20260427130000_add_invite_code.sql h1:fW5pPyYcGV/NrJgZMGQ/60y61wrppXezNo3BjUIdeog=
 20260428100000_add_event_swipes.sql h1:4Zw3JV3ve+J2D+n451poZxqp0f8473Ak74Dmpop9w9w=
+20260428120000_perf_indexes.sql h1:ANRnKxvVh3i008V5wDo4pmwvzhEqrNF8dNnyp9yiLT0=
