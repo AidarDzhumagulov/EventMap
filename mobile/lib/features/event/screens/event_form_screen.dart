@@ -7,6 +7,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:latlong2/latlong.dart';
 
+import '../../../core/snackbar.dart';
 import '../../../core/theme.dart';
 import '../../../models/category_model.dart';
 import '../../../models/event_model.dart';
@@ -124,9 +125,7 @@ class _EventFormScreenState extends ConsumerState<EventFormScreen> {
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
     if (_startTime == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Укажи дату и время начала')),
-      );
+      context.showError('Укажи дату и время начала');
       return;
     }
 
@@ -155,11 +154,7 @@ class _EventFormScreenState extends ConsumerState<EventFormScreen> {
         );
         ref.invalidate(eventsProvider(widget.event!.cityName));
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text('Событие обновлено'),
-            backgroundColor: AppColors.primary,
-            behavior: SnackBarBehavior.floating,
-          ));
+          context.showSuccess('Событие обновлено');
           Navigator.of(context).pop(updated);
         }
       } else {

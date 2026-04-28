@@ -7,6 +7,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:latlong2/latlong.dart';
 
+import '../../../core/snackbar.dart';
 import '../../../core/theme.dart';
 import '../../../models/category_model.dart';
 import '../../../models/location_model.dart';
@@ -104,9 +105,7 @@ class _CreateEventScreenState extends ConsumerState<CreateEventScreen> {
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
     if (_startTime == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Укажи дату и время начала')),
-      );
+      context.showError('Укажи дату и время начала');
       return;
     }
 
@@ -351,7 +350,7 @@ class _CreateEventScreenState extends ConsumerState<CreateEventScreen> {
                       color: AppColors.textHint, fontSize: 12),
                 ),
                 value: _isPrivate,
-                activeColor: AppColors.primary,
+                activeThumbColor: AppColors.primary,
                 onChanged: (v) => setState(() => _isPrivate = v),
               ),
             ),
@@ -430,13 +429,13 @@ class _CreateEventScreenState extends ConsumerState<CreateEventScreen> {
               : null,
         ),
         child: _coverImage == null
-            ? Column(
+            ? const Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Icon(Icons.add_photo_alternate_rounded,
                       color: AppColors.textHint, size: 36),
-                  const SizedBox(height: 8),
-                  const Text('Добавить обложку',
+                  SizedBox(height: 8),
+                  Text('Добавить обложку',
                       style: TextStyle(
                           color: AppColors.textHint, fontSize: 13)),
                 ],

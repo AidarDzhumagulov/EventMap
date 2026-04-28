@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 
+import '../../../core/snackbar.dart';
 import '../../../core/theme.dart';
 import '../../../models/category_model.dart';
 import '../../../models/event_model.dart';
@@ -124,11 +125,7 @@ class _EditEventScreenState extends ConsumerState<EditEventScreen> {
       ref.invalidate(eventsProvider(widget.event.cityName));
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Событие обновлено'),
-          backgroundColor: AppColors.primary,
-          behavior: SnackBarBehavior.floating,
-        ));
+        context.showSuccess('Событие обновлено');
         // Возвращаем обновлённое событие обратно в EventDetailScreen
         Navigator.of(context).pop(updated);
       }
@@ -330,7 +327,7 @@ class _EditEventScreenState extends ConsumerState<EditEventScreen> {
                   style: TextStyle(color: AppColors.textHint, fontSize: 12),
                 ),
                 value: _isPrivate,
-                activeColor: AppColors.primary,
+                activeThumbColor: AppColors.primary,
                 onChanged: (v) => setState(() => _isPrivate = v),
               ),
             ),
@@ -370,13 +367,13 @@ class _EditEventScreenState extends ConsumerState<EditEventScreen> {
                   : null,
         ),
         child: !hasImage
-            ? Column(
+            ? const Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(Icons.add_photo_alternate_rounded,
+                  Icon(Icons.add_photo_alternate_rounded,
                       color: AppColors.textHint, size: 36),
-                  const SizedBox(height: 8),
-                  const Text('Добавить обложку',
+                  SizedBox(height: 8),
+                  Text('Добавить обложку',
                       style: TextStyle(
                           color: AppColors.textHint, fontSize: 13)),
                 ],

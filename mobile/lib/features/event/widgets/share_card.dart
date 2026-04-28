@@ -80,13 +80,13 @@ class EventShareCard extends StatelessWidget {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    _Badge(
+                    const _Badge(
                       label: 'EventMap',
                       color: AppColors.primary,
                       filled: false,
                     ),
                     if (event.status == EventStatus.ongoing)
-                      _Badge(label: '● Идёт сейчас', color: AppColors.success, filled: true),
+                      const _Badge(label: '● Идёт сейчас', color: AppColors.success, filled: true),
                   ],
                 ),
 

@@ -45,6 +45,9 @@ dependencies:
   share_plus: ^10.0.2
   app_links: ^6.3.2
   cached_network_image: ^3.4.1
+  flutter_map_cache: ^2.1.0
+  dio_cache_interceptor: ^4.0.6
+  flutter_map_marker_cluster: ^1.4.0
 
 dev_dependencies:
   flutter_test:

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/dio_client.dart';
+import '../../../core/snackbar.dart';
 import '../../../core/theme.dart';
 import '../../map/providers/events_provider.dart';
 
@@ -79,14 +80,8 @@ class _RsvpButtonsState extends ConsumerState<RsvpButtons> {
         widget.onStatusChanged?.call(oldStatus, tapped);
       }
       ref.invalidate(eventsProvider(widget.cityName));
-    } catch (_) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Не удалось обновить статус'),
-          backgroundColor: Colors.redAccent,
-          behavior: SnackBarBehavior.floating,
-        ));
-      }
+    } catch (e) {
+      if (mounted) context.showApiError(e, fallback: 'Не удалось обновить статус');
     } finally {
       if (mounted) setState(() => _loading = false);
     }

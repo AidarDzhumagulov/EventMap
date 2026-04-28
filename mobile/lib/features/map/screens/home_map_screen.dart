@@ -2,10 +2,12 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
+import 'package:flutter_map_marker_cluster/flutter_map_marker_cluster.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 
+import '../../../core/map/tile_provider.dart';
 import '../../../core/theme.dart';
 import '../../../models/event_model.dart';
 import '../../event/screens/event_detail_screen.dart';
@@ -39,10 +41,6 @@ class _HomeMapScreenState extends ConsumerState<HomeMapScreen> {
     super.dispose();
   }
 
-  static const _dgisApiKey = String.fromEnvironment('DGIS_API_KEY');
-  static const _dgisTileTemplate =
-      'https://tile2.maps.2gis.com/tiles?x={x}&y={y}&z={z}&v=1&r=g&ts=online_sd&key=$_dgisApiKey';
-
   @override
   Widget build(BuildContext context) {
     final selectedCity = ref.watch(selectedCityProvider);
@@ -74,34 +72,59 @@ class _HomeMapScreenState extends ConsumerState<HomeMapScreen> {
               },
             ),
             children: [
-              // Тайлы карты
-              TileLayer(
-                urlTemplate: _dgisTileTemplate,
-                userAgentPackageName: 'com.eventmap.event_map',
-                maxZoom: 19,
-              ),
-              // Маркеры событий
-              MarkerLayer(
-                markers: eventsAsync.maybeWhen(
-                  data: (events) => events.map((event) {
-                    final isSelected = selectedEvent?.id == event.id;
-                    return Marker(
-                      point: event.location,
-                      width: isSelected ? 160 : 60,
-                      height: 56,
-                      alignment: Alignment.topCenter,
-                      child: EventMarker(
-                        event: event,
-                        isSelected: isSelected,
-                        onTap: () {
-                          ref.read(selectedEventProvider.notifier).state =
-                              event;
-                          _mapController.move(event.location, 14);
-                        },
+              // Тайлы карты (с in-memory кешем)
+              dgisTileLayer(),
+              // Маркеры событий — кластеризуются на низком zoom'е
+              MarkerClusterLayerWidget(
+                options: MarkerClusterLayerOptions(
+                  maxClusterRadius: 60,
+                  size: const Size(44, 44),
+                  alignment: Alignment.center,
+                  padding: const EdgeInsets.all(50),
+                  maxZoom: 16, // выше — показываем индивидуальные маркеры
+                  markers: eventsAsync.maybeWhen(
+                    data: (events) => events.map((event) {
+                      final isSelected = selectedEvent?.id == event.id;
+                      return Marker(
+                        point: event.location,
+                        width: isSelected ? 160 : 60,
+                        height: 56,
+                        alignment: Alignment.topCenter,
+                        child: EventMarker(
+                          event: event,
+                          isSelected: isSelected,
+                          onTap: () {
+                            ref.read(selectedEventProvider.notifier).state =
+                                event;
+                            _mapController.move(event.location, 14);
+                          },
+                        ),
+                      );
+                    }).toList(),
+                    orElse: () => [],
+                  ),
+                  builder: (context, markers) => Container(
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: AppColors.primary,
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppColors.primary.withValues(alpha: 0.5),
+                          blurRadius: 16,
+                          spreadRadius: 1,
+                        ),
+                      ],
+                    ),
+                    alignment: Alignment.center,
+                    child: Text(
+                      '${markers.length}',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 16,
                       ),
-                    );
-                  }).toList(),
-                  orElse: () => [],
+                    ),
+                  ),
                 ),
               ),
             ],
@@ -193,8 +216,8 @@ class _HomeMapScreenState extends ConsumerState<HomeMapScreen> {
 
           // Bottom sheet события
           if (selectedEvent != null)
-            Positioned.fill(
-              child: const EventBottomSheet(),
+            const Positioned.fill(
+              child: EventBottomSheet(),
             ),
         ],
       ),
@@ -359,13 +382,13 @@ class _HomeMapScreenState extends ConsumerState<HomeMapScreen> {
               style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
             ),
             const SizedBox(height: 12),
-            _cityOption(context, ref, 'Бишкек', LatLng(42.8746, 74.5698)),
+            _cityOption(context, ref, 'Бишкек', const LatLng(42.8746, 74.5698)),
             const SizedBox(height: 8),
-            _cityOption(context, ref, 'Алматы', LatLng(43.2220, 76.8512)),
+            _cityOption(context, ref, 'Алматы', const LatLng(43.2220, 76.8512)),
             const SizedBox(height: 8),
-            _cityOption(context, ref, 'Астана', LatLng(51.1694, 71.4491)),
+            _cityOption(context, ref, 'Астана', const LatLng(51.1694, 71.4491)),
             const SizedBox(height: 8),
-            _cityOption(context, ref, 'Ташкент', LatLng(41.2995, 69.2401)),
+            _cityOption(context, ref, 'Ташкент', const LatLng(41.2995, 69.2401)),
           ],
         ),
       ),

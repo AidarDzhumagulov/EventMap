@@ -625,11 +625,7 @@ class _InviteCodeCard extends StatelessWidget {
                 onPressed: () {
                   // ignore: deprecated_member_use
                   Clipboard.setData(ClipboardData(text: code));
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                    content: Text('Код скопирован'),
-                    behavior: SnackBarBehavior.floating,
-                    duration: Duration(seconds: 2),
-                  ));
+                  context.showInfo('Код скопирован');
                 },
                 icon: const Icon(Icons.copy_rounded,
                     color: Color(0xFF6B21A8), size: 22),
@@ -678,11 +674,7 @@ class _JoinByCodeButtonState extends ConsumerState<_JoinByCodeButton> {
       ref.invalidate(eventsProvider(widget.cityName));
       if (mounted) {
         Navigator.of(context).pop();
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Вы присоединились к событию!'),
-          backgroundColor: AppColors.success,
-          behavior: SnackBarBehavior.floating,
-        ));
+        context.showSuccess('Вы присоединились к событию!');
       }
     } on DioException catch (e) {
       if (mounted) {
@@ -690,12 +682,12 @@ class _JoinByCodeButtonState extends ConsumerState<_JoinByCodeButton> {
             ? 'Неверный код'
             : e.response?.statusCode == 409
                 ? 'Мест нет'
-                : 'Ошибка';
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(msg),
-          backgroundColor: AppColors.error,
-          behavior: SnackBarBehavior.floating,
-        ));
+                : null;
+        if (msg != null) {
+          context.showError(msg);
+        } else {
+          context.showApiError(e);
+        }
       }
     } finally {
       if (mounted) setState(() => _loading = false);

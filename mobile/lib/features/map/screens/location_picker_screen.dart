@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 
+import '../../../core/map/tile_provider.dart';
+import '../../../core/snackbar.dart';
 import '../../../core/theme.dart';
 import '../../../models/location_model.dart';
 
@@ -18,10 +20,6 @@ class LocationPickerScreen extends StatefulWidget {
 }
 
 class _LocationPickerScreenState extends State<LocationPickerScreen> {
-  static const _dgisApiKey = String.fromEnvironment('DGIS_API_KEY');
-  static const _dgisTileTemplate =
-      'https://tile2.maps.2gis.com/tiles?x={x}&y={y}&z={z}&v=1&r=g&ts=online_sd&key=$_dgisApiKey';
-
   late LatLng _picked;
   String? _address;
   bool _isGeocoding = false;
@@ -95,13 +93,7 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
       }
     } catch (_) {
       _address = null;
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Не удалось определить адрес'),
-          behavior: SnackBarBehavior.floating,
-          duration: Duration(seconds: 2),
-        ));
-      }
+      if (mounted) context.showError('Не удалось определить адрес');
     } finally {
       if (mounted) setState(() => _isGeocoding = false);
     }
@@ -162,11 +154,7 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
               onTap: (_, point) => _onMapTap(point),
             ),
             children: [
-              TileLayer(
-                urlTemplate: _dgisTileTemplate,
-                userAgentPackageName: 'com.eventmap.event_map',
-                maxZoom: 19,
-              ),
+              dgisTileLayer(),
               MarkerLayer(
                 markers: [
                   Marker(

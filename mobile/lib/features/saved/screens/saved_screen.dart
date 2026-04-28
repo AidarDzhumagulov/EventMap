@@ -57,7 +57,7 @@ class SavedScreen extends ConsumerWidget {
                   ),
                 ),
                 data: (events) => events.isEmpty
-                    ? Center(
+                    ? const Center(
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
@@ -66,8 +66,8 @@ class SavedScreen extends ConsumerWidget {
                               color: AppColors.textHint,
                               size: 48,
                             ),
-                            const SizedBox(height: 12),
-                            const Text(
+                            SizedBox(height: 12),
+                            Text(
                               'Нет сохранённых событий',
                               style: TextStyle(color: AppColors.textSecondary),
                             ),

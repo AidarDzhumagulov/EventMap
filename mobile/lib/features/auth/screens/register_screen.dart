@@ -160,8 +160,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen>
                   color: AppColors.textHint),
             ),
             validator: (value) {
-              if (value == null || value.isEmpty)
+              if (value == null || value.isEmpty) {
                 return 'Введи имя пользователя';
+              }
               if (value.length < 3) return 'Минимум 3 символа';
               if (value.contains(' ')) return 'Без пробелов';
               return null;
@@ -233,8 +234,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen>
             ),
             validator: (value) {
               if (value == null || value.isEmpty) return 'Повтори пароль';
-              if (value != _passwordController.text)
+              if (value != _passwordController.text) {
                 return 'Пароли не совпадают';
+              }
               return null;
             },
           ),
