@@ -16,15 +16,15 @@ const (
 	TokenTypeAccess  = "access"
 	TokenTypeRefresh = "refresh"
 
-	accessTTL  = 15 * time.Minute
-	refreshTTL = 7 * 24 * time.Hour
+	AccessTTL  = 15 * time.Minute
+	RefreshTTL = 7 * 24 * time.Hour
 )
 
 // ErrInvalidToken — общая ошибка для невалидных/протухших токенов.
 var ErrInvalidToken = errors.New("invalid token")
 
 var (
-	secretOnce  sync.Once
+	secretOnce   sync.Once
 	cachedSecret []byte
 )
 
@@ -45,55 +45,105 @@ func Secret() []byte {
 // MustInit — вызывается из main() чтобы упасть на старте, а не при первом запросе.
 func MustInit() { _ = Secret() }
 
-// generateToken — общий генератор для access/refresh.
-func generateToken(userID uuid.UUID, tokenType string, ttl time.Duration) (string, error) {
+// RefreshClaims — данные, которые мы достаём из refresh-токена для rotation.
+type RefreshClaims struct {
+	UserID   uuid.UUID
+	JTI      uuid.UUID // ID самого токена (для проверки в БД)
+	FamilyID uuid.UUID // ID цепочки — все токены одного login имеют одинаковый
+}
+
+// GenerateAccessToken — короткоживущий токен для запросов.
+// Не записывается в БД, валидируется только подписью.
+func GenerateAccessToken(userID uuid.UUID) (string, error) {
 	claims := jwt.MapClaims{
 		"user_id": userID.String(),
-		"type":    tokenType,
-		"exp":     time.Now().Add(ttl).Unix(),
+		"type":    TokenTypeAccess,
+		"exp":     time.Now().Add(AccessTTL).Unix(),
 		"iat":     time.Now().Unix(),
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	return token.SignedString(Secret())
 }
 
-func GenerateAccessToken(userID uuid.UUID) (string, error) {
-	return generateToken(userID, TokenTypeAccess, accessTTL)
+// GenerateRefreshToken — долгоживущий токен.
+// jti и family_id используются для rotation/reuse-detection через таблицу refresh_tokens.
+func GenerateRefreshToken(userID, jti, familyID uuid.UUID) (string, time.Time, error) {
+	expiresAt := time.Now().Add(RefreshTTL)
+	claims := jwt.MapClaims{
+		"user_id":   userID.String(),
+		"type":      TokenTypeRefresh,
+		"jti":       jti.String(),
+		"family_id": familyID.String(),
+		"exp":       expiresAt.Unix(),
+		"iat":       time.Now().Unix(),
+	}
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	signed, err := token.SignedString(Secret())
+	return signed, expiresAt, err
 }
 
-func GenerateRefreshToken(userID uuid.UUID) (string, error) {
-	return generateToken(userID, TokenTypeRefresh, refreshTTL)
+// ParseAccessToken — проверяет подпись/алгоритм и возвращает user_id.
+// Доступ валидируется только криптографически — БД не дёргаем (для скорости).
+func ParseAccessToken(tokenString string) (uuid.UUID, error) {
+	claims, err := parseClaims(tokenString)
+	if err != nil {
+		return uuid.Nil, err
+	}
+	if t, _ := claims["type"].(string); t != TokenTypeAccess {
+		return uuid.Nil, ErrInvalidToken
+	}
+	return parseUUIDClaim(claims, "user_id")
 }
 
-// ParseToken проверяет подпись, алгоритм и тип токена.
-// Защищает от alg=none и HMAC↔RSA confusion атак.
-func ParseToken(tokenString, expectedType string) (uuid.UUID, error) {
+// ParseRefreshToken — проверяет подпись/алгоритм и возвращает claims для проверки в БД.
+// Полная валидация (revoked, used, expires) делается на уровне репозитория.
+func ParseRefreshToken(tokenString string) (RefreshClaims, error) {
+	claims, err := parseClaims(tokenString)
+	if err != nil {
+		return RefreshClaims{}, err
+	}
+	if t, _ := claims["type"].(string); t != TokenTypeRefresh {
+		return RefreshClaims{}, ErrInvalidToken
+	}
+
+	userID, err := parseUUIDClaim(claims, "user_id")
+	if err != nil {
+		return RefreshClaims{}, err
+	}
+	jti, err := parseUUIDClaim(claims, "jti")
+	if err != nil {
+		return RefreshClaims{}, err
+	}
+	familyID, err := parseUUIDClaim(claims, "family_id")
+	if err != nil {
+		return RefreshClaims{}, err
+	}
+	return RefreshClaims{UserID: userID, JTI: jti, FamilyID: familyID}, nil
+}
+
+// parseClaims — общая часть: проверка алгоритма (защита от alg=none / RSA confusion).
+func parseClaims(tokenString string) (jwt.MapClaims, error) {
 	token, err := jwt.Parse(tokenString, func(t *jwt.Token) (any, error) {
-		// Критично: проверяем что используется именно HMAC, а не RSA/none.
 		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", t.Header["alg"])
 		}
 		return Secret(), nil
 	})
 	if err != nil || !token.Valid {
-		return uuid.Nil, ErrInvalidToken
+		return nil, ErrInvalidToken
 	}
-
 	claims, ok := token.Claims.(jwt.MapClaims)
 	if !ok {
-		return uuid.Nil, ErrInvalidToken
+		return nil, ErrInvalidToken
 	}
+	return claims, nil
+}
 
-	// Проверка типа: refresh нельзя использовать как access и наоборот.
-	tokenType, _ := claims["type"].(string)
-	if tokenType != expectedType {
-		return uuid.Nil, ErrInvalidToken
-	}
-
-	userIDStr, _ := claims["user_id"].(string)
-	userID, err := uuid.Parse(userIDStr)
+func parseUUIDClaim(claims jwt.MapClaims, key string) (uuid.UUID, error) {
+	s, _ := claims[key].(string)
+	id, err := uuid.Parse(s)
 	if err != nil {
 		return uuid.Nil, ErrInvalidToken
 	}
-	return userID, nil
+	return id, nil
 }

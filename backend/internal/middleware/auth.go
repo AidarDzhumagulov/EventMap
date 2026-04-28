@@ -31,7 +31,7 @@ func AuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
 		}
 
 		tokenString := strings.TrimPrefix(authHeader, "Bearer ")
-		userID, err := auth.ParseToken(tokenString, auth.TokenTypeAccess)
+		userID, err := auth.ParseAccessToken(tokenString)
 		if err != nil {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 			return

@@ -240,11 +240,58 @@ class ProfileScreen extends ConsumerWidget {
                   ),
                 ),
               ),
+              const SizedBox(height: 8),
+              // Logout со всех устройств — для случая «потерял телефон».
+              GestureDetector(
+                onTap: () => _confirmLogoutAll(context, ref),
+                child: const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 12),
+                  child: Text(
+                    'Выйти со всех устройств',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: AppColors.textHint,
+                      fontSize: 13,
+                      decoration: TextDecoration.underline,
+                    ),
+                  ),
+                ),
+              ),
             ],
           ),
         ),
       ),
     );
+  }
+
+  Future<void> _confirmLogoutAll(BuildContext context, WidgetRef ref) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        title: const Text('Выйти со всех устройств?',
+            style: TextStyle(color: AppColors.textPrimary)),
+        content: const Text(
+          'Все активные сессии будут завершены. Тебе придётся войти заново на каждом устройстве.',
+          style: TextStyle(color: AppColors.textSecondary),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Отмена',
+                style: TextStyle(color: AppColors.textHint)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Выйти',
+                style: TextStyle(color: Colors.redAccent)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) {
+      await ref.read(authProvider.notifier).logoutAll();
+    }
   }
 
   Widget _statCard(BuildContext context,

@@ -65,6 +65,13 @@ class AuthNotifier extends Notifier<AuthState> {
     state = AuthInitial();
   }
 
+  /// Logout со всех устройств — отзывает все refresh-сессии на сервере.
+  Future<void> logoutAll() async {
+    await _repo.logoutAll();
+    ref.read(authStatusProvider.notifier).state = AuthStatus.unauthenticated;
+    state = AuthInitial();
+  }
+
   void clearError() {
     state = AuthInitial();
   }

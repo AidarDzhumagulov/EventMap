@@ -81,13 +81,16 @@ func main() {
 	storage := core.NewStorage()
 
 	userRepo := repository.NewUserRepository(db)
-	h := handler.NewHandler(userRepo)
+	tokenRepo := repository.NewRefreshTokenRepository(db)
+	h := handler.NewHandler(userRepo, tokenRepo)
 	uploadHandler := handler.NewUploadHandler(storage)
 
 	mux.HandleFunc("/upload", authMW(uploadHandler.Upload))
 	mux.HandleFunc("/register", pub(authLimiter.Middleware(h.RegisterUser)))
 	mux.HandleFunc("/login", pub(authLimiter.Middleware(h.Login)))
 	mux.HandleFunc("/refresh", pub(authLimiter.Middleware(h.Refresh)))
+	mux.HandleFunc("/logout", pub(h.Logout))
+	mux.HandleFunc("/logout-all", authMW(h.LogoutAll))
 	mux.HandleFunc("/me", authMW(h.Me))
 	mux.HandleFunc("/me/update", authMW(h.UpdateMe))
 

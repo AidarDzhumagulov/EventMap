@@ -74,7 +74,37 @@ class AuthRepository {
     }
   }
 
+  /// Logout: отзывает refresh-сессию на сервере, потом стирает токены локально.
+  /// Если сетевая ошибка — всё равно чистим локально (юзер хочет выйти).
   Future<void> logout() async {
+    final refreshToken = await _storage.read(key: 'refresh_token');
+    if (refreshToken != null) {
+      try {
+        // Отдельный Dio без interceptor'а — чтоб не зациклить refresh
+        // и чтобы logout не использовал access-токен из interceptor.
+        final logoutDio = Dio(BaseOptions(baseUrl: _dio.options.baseUrl));
+        await logoutDio.post(
+          '/logout',
+          options: Options(
+            headers: {'Authorization': 'Bearer $refreshToken'},
+            // 204 — норма; 401 — токен уже мёртв, тоже норма; не швыряем исключение.
+            validateStatus: (_) => true,
+          ),
+        );
+      } catch (_) {
+        // Сетевая ошибка — игнорируем, локально всё равно очистим.
+      }
+    }
+    await clearTokens(_storage);
+  }
+
+  /// Logout со всех устройств. Требует валидный access-токен — обычный _dio с interceptor подходит.
+  Future<void> logoutAll() async {
+    try {
+      await _dio.post('/logout-all');
+    } catch (_) {
+      // Если сервер недоступен — всё равно стираем локальные токены ниже.
+    }
     await clearTokens(_storage);
   }
 
