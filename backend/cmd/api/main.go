@@ -179,6 +179,13 @@ func main() {
 		}
 	}()
 
+	// Background cleanup протухших refresh-токенов — раз в сутки.
+	// Если несколько подов — DELETE идемпотентен, страшного ничего, только лишняя нагрузка.
+	// Когда дойдём до k8s cron — переедет туда.
+	bgCtx, bgCancel := context.WithCancel(context.Background())
+	defer bgCancel()
+	go runTokenCleanup(bgCtx, tokenRepo)
+
 	// Ждём SIGTERM/SIGINT или ошибку запуска.
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGTERM, syscall.SIGINT)
@@ -197,6 +204,40 @@ func main() {
 		slog.Error("shutdown failed", "err", err)
 	}
 	slog.Info("shutdown complete")
+}
+
+// runTokenCleanup — периодически чистит протухшие refresh-токены.
+// Запускается раз в сутки. Прерывается через context при shutdown.
+func runTokenCleanup(ctx context.Context, repo *repository.RefreshTokenRepository) {
+	ticker := time.NewTicker(24 * time.Hour)
+	defer ticker.Stop()
+
+	// Первый прогон сразу — не ждём 24 часа после рестарта.
+	doCleanup(ctx, repo)
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			doCleanup(ctx, repo)
+		}
+	}
+}
+
+func doCleanup(ctx context.Context, repo *repository.RefreshTokenRepository) {
+	// Отдельный таймаут — чтобы зависший DELETE не висел вечно.
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	deleted, err := repo.CleanupExpired(ctx)
+	if err != nil {
+		slog.Error("token cleanup failed", "err", err)
+		return
+	}
+	if deleted > 0 {
+		slog.Info("token cleanup complete", "deleted", deleted)
+	}
 }
 
 // pingHandler — health check, проверяет и БД тоже.

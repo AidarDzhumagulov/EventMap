@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/date_symbol_data_local.dart';
 
+import 'core/auth_status_provider.dart';
 import 'core/theme.dart';
 import 'routes/app_router.dart';
 
@@ -47,6 +48,9 @@ class EventMapApp extends ConsumerStatefulWidget {
 class _EventMapAppState extends ConsumerState<EventMapApp> {
   final _appLinks = AppLinks();
   StreamSubscription<Uri>? _linkSub;
+  // Глобальный ключ — позволяет показывать SnackBar из любого места,
+  // включая dio interceptor (где BuildContext недоступен).
+  final _scaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
 
   @override
   void initState() {
@@ -83,10 +87,29 @@ class _EventMapAppState extends ConsumerState<EventMapApp> {
   @override
   Widget build(BuildContext context) {
     final router = ref.watch(appRouterProvider);
+
+    // Слушаем причину принудительного logout (например, при token reuse).
+    // Показываем юзеру SnackBar и сбрасываем состояние.
+    ref.listen<String?>(forcedLogoutReasonProvider, (_, reason) {
+      if (reason == null) return;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _scaffoldMessengerKey.currentState
+          ?..hideCurrentSnackBar()
+          ..showSnackBar(SnackBar(
+            content: Text(reason),
+            backgroundColor: AppColors.error,
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 5),
+          ));
+        ref.read(forcedLogoutReasonProvider.notifier).state = null;
+      });
+    });
+
     return MaterialApp.router(
       title: 'Event Map',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.dark,
+      scaffoldMessengerKey: _scaffoldMessengerKey,
       routerConfig: router,
     );
   }

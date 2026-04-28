@@ -264,8 +264,10 @@ func (h *Handler) Refresh(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case errors.Is(err, repository.ErrTokenReused):
 			// Атака — кто-то использует уже отработанный токен.
+			// Кастомный header → клиент покажет специальный месседж юзеру.
 			slog.Warn("Refresh: token reuse detected — family revoked",
 				"user_id", claims.UserID, "family_id", claims.FamilyID)
+			w.Header().Set("X-Auth-Error", "token_reuse")
 			http.Error(w, "Token reuse detected, please login again", http.StatusUnauthorized)
 		case errors.Is(err, repository.ErrTokenRevoked),
 			errors.Is(err, repository.ErrTokenExpired),

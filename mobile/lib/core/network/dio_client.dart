@@ -66,6 +66,14 @@ final dioClientProvider = Provider<Dio>((ref) {
               opts.headers['Authorization'] = 'Bearer $newAccess';
               final retryResponse = await dio.fetch(opts);
               return handler.resolve(retryResponse);
+            } on DioException catch (e) {
+              // Reuse-detection: бэк отозвал всю family.
+              // Показываем юзеру специальное сообщение, не просто «логин».
+              if (e.response?.headers.value('x-auth-error') == 'token_reuse') {
+                ref.read(forcedLogoutReasonProvider.notifier).state =
+                    'Сессия завершена из соображений безопасности. '
+                    'Войди заново.';
+              }
             } catch (_) {}
           }
           // refresh-токена нет или refresh тоже вернул 401 — выбрасываем на логин
