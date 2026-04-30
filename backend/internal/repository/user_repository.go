@@ -38,19 +38,38 @@ func (r *UserRepository) Create(ctx context.Context, user models.User) (models.U
 
 func (r *UserRepository) GetByID(ctx context.Context, id uuid.UUID) (models.User, error) {
 	var user models.User
+	// Rating берётся из денормализованной колонки users.rating, которая
+	// периодически пересчитывается фоновой задачей (см. RecalculateRatings).
+	// Это устраняет N+1 — раньше каждый /me делал full scan по events + JOIN.
 	err := r.db.GetContext(ctx, &user, `
-		SELECT u.id, u.email, u.email_verified, u.username, u.role, u.avatar_url,
-		    COALESCE((
-		        SELECT COUNT(em.user_id)::float
-		        FROM events e
-		        JOIN event_members em ON em.event_id = e.id AND em.status = 'go'
-		        WHERE e.created_by = u.id
-		          AND e.deleted_at IS NULL
-		          AND now() > COALESCE(e.end_time, e.start_time + INTERVAL '2 hours')
-		    ), 0) AS rating
-		FROM users u
-		WHERE u.id = $1`, id)
+		SELECT id, email, email_verified, username, role, rating, avatar_url
+		FROM users
+		WHERE id = $1`, id)
 	return user, err
+}
+
+// RecalculateRatings — пересчитывает rating для всех юзеров одним UPDATE.
+// Логика: rating = количество людей, пришедших ('go') на завершённые события юзера.
+// Запускается фоновой задачей раз в N часов и при graceful shutdown.
+//
+// Один SQL вместо N — даже на 100k юзеров занимает ~секунду.
+func (r *UserRepository) RecalculateRatings(ctx context.Context) error {
+	_, err := r.db.ExecContext(ctx, `
+		UPDATE users u
+		SET rating = COALESCE(stats.cnt, 0)
+		FROM (
+			SELECT u.id AS user_id, COUNT(em.user_id)::float AS cnt
+			FROM users u
+			LEFT JOIN events e ON e.created_by = u.id
+				AND e.deleted_at IS NULL
+				AND now() > COALESCE(e.end_time, e.start_time + INTERVAL '2 hours')
+			LEFT JOIN event_members em ON em.event_id = e.id AND em.status = 'go'
+			GROUP BY u.id
+		) stats
+		WHERE u.id = stats.user_id
+		  AND u.rating IS DISTINCT FROM stats.cnt
+	`)
+	return err
 }
 
 func (r *UserRepository) GetUserByEmail(ctx context.Context, email string) (models.User, error) {

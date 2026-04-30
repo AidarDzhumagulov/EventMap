@@ -9,6 +9,7 @@ import (
 	"event-map/internal/handler"
 	"event-map/internal/middleware"
 	"event-map/internal/repository"
+	"event-map/internal/service"
 	"fmt"
 	"log"
 	"log/slog"
@@ -113,9 +114,13 @@ func run() error {
 	emailVerifyRepo := repository.NewEmailVerificationRepository(db)
 	passwordResetRepo := repository.NewPasswordResetRepository(db)
 
-	verificationHandler := handler.NewEmailVerificationHandler(userRepo, emailVerifyRepo, mailer)
-	passwordResetHandler := handler.NewPasswordResetHandler(userRepo, passwordResetRepo, tokenRepo, mailer)
-	h := handler.NewHandler(userRepo, tokenRepo, verificationHandler)
+	// Service слой содержит всю auth-бизнес-логику. Handler'ы — тонкая
+	// HTTP-обёртка над ним (парсинг запроса + маппинг ошибок).
+	authService := service.NewAuthService(userRepo, tokenRepo, emailVerifyRepo, passwordResetRepo, mailer)
+
+	verificationHandler := handler.NewEmailVerificationHandler(authService)
+	passwordResetHandler := handler.NewPasswordResetHandler(authService)
+	h := handler.NewHandler(userRepo, authService)
 	uploadHandler := handler.NewUploadHandler(storage)
 
 	mux.HandleFunc("/upload", authMW(uploadHandler.Upload))
@@ -221,11 +226,17 @@ func run() error {
 		}
 	}()
 
-	// Background cleanup протухших токенов (refresh, email_verification, password_reset).
-	// Раз в сутки. Если несколько подов — DELETE идемпотентен, лишняя нагрузка не критична.
+	// Фоновые задачи. Контекст отменяется при graceful shutdown.
 	bgCtx, bgCancel := context.WithCancel(context.Background())
 	defer bgCancel()
+
+	// Cleanup протухших токенов (refresh, email_verification, password_reset).
+	// Раз в сутки. DELETE идемпотентен — мульти-под безопасно.
 	go runTokenCleanup(bgCtx, tokenRepo, emailVerifyRepo, passwordResetRepo)
+
+	// Пересчёт user rating. Раз в 6 часов — баланс между актуальностью
+	// и нагрузкой. Если несколько подов — UPDATE идемпотентен.
+	go runRatingRecalc(bgCtx, userRepo)
 
 	// Ждём SIGTERM/SIGINT или ошибку запуска.
 	sigCh := make(chan os.Signal, 1)
@@ -288,6 +299,34 @@ func doCleanupAll(ctx context.Context, repos []cleaner) {
 			slog.Info("token cleanup complete", "deleted", deleted)
 		}
 	}
+}
+
+// runRatingRecalc — фоновый пересчёт user.rating раз в 6 часов.
+// Один SQL UPDATE для всех — даже на сотнях тысяч юзеров занимает секунды.
+func runRatingRecalc(ctx context.Context, repo *repository.UserRepository) {
+	ticker := time.NewTicker(6 * time.Hour)
+	defer ticker.Stop()
+
+	doRatingRecalc(ctx, repo)
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			doRatingRecalc(ctx, repo)
+		}
+	}
+}
+
+func doRatingRecalc(ctx context.Context, repo *repository.UserRepository) {
+	c, cancel := context.WithTimeout(ctx, 60*time.Second)
+	defer cancel()
+	if err := repo.RecalculateRatings(c); err != nil {
+		slog.Error("rating recalc failed", "err", err)
+		return
+	}
+	slog.Info("rating recalc complete")
 }
 
 // liveHandler — для liveness probe. Если процесс отвечает — он жив.
