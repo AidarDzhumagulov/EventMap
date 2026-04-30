@@ -14,13 +14,14 @@ type RegisterUser struct {
 }
 
 type User struct {
-	ID           uuid.UUID `json:"id" db:"id"`
-	Email        string    `json:"email" db:"email"`
-	Username     string    `json:"username" db:"username"`
-	Role         string    `json:"role" db:"role"`
-	Rating       float32   `json:"rating" db:"rating"`
-	AvatarURL    *string   `json:"avatar_url" db:"avatar_url"`
-	PasswordHash string    `json:"-" db:"password"`
+	ID            uuid.UUID `json:"id" db:"id"`
+	Email         string    `json:"email" db:"email"`
+	EmailVerified bool      `json:"email_verified" db:"email_verified"`
+	Username      string    `json:"username" db:"username"`
+	Role          string    `json:"role" db:"role"`
+	Rating        float32   `json:"rating" db:"rating"`
+	AvatarURL     *string   `json:"avatar_url" db:"avatar_url"`
+	PasswordHash  string    `json:"-" db:"password"`
 }
 
 type LoginUser struct {

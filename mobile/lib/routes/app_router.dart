@@ -4,9 +4,12 @@ import 'package:go_router/go_router.dart';
 
 import '../core/auth_status_provider.dart';
 import '../core/theme.dart';
+import '../features/auth/screens/forgot_password_screen.dart';
 import '../features/auth/screens/login_screen.dart';
 import '../features/auth/screens/register_screen.dart';
+import '../features/auth/screens/reset_password_screen.dart';
 import '../features/auth/screens/splash_screen.dart';
+import '../features/auth/screens/verify_email_screen.dart';
 import '../features/event/screens/event_detail_screen.dart';
 import '../features/event/screens/swipe_screen.dart';
 import '../features/map/providers/events_provider.dart';
@@ -16,6 +19,9 @@ class AppRoutes {
   static const splash = '/';
   static const login = '/login';
   static const register = '/register';
+  static const forgotPassword = '/forgot-password';
+  static const resetPassword = '/reset-password';
+  static const verifyEmail = '/verify-email';
   static const homeMap = '/map';
   static const event = '/event';
   static const swipe = '/swipe';
@@ -38,9 +44,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     redirect: (context, state) {
       final authStatus = ref.read(authStatusProvider);
       final loc = state.matchedLocation;
+      // Auth-страницы и flow восстановления доступны и без логина.
       final onAuthPage = loc == AppRoutes.login ||
           loc == AppRoutes.register ||
-          loc == AppRoutes.splash;
+          loc == AppRoutes.splash ||
+          loc == AppRoutes.forgotPassword ||
+          loc == AppRoutes.resetPassword ||
+          loc == AppRoutes.verifyEmail;
 
       if (authStatus == AuthStatus.unknown) return null;
 
@@ -62,6 +72,26 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: AppRoutes.register,
         builder: (context, state) => const RegisterScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.forgotPassword,
+        builder: (context, state) => const ForgotPasswordScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.resetPassword,
+        builder: (context, state) {
+          final token = state.uri.queryParameters['token'] ?? '';
+          if (token.isEmpty) return const LoginScreen();
+          return ResetPasswordScreen(token: token);
+        },
+      ),
+      GoRoute(
+        path: AppRoutes.verifyEmail,
+        builder: (context, state) {
+          final token = state.uri.queryParameters['token'] ?? '';
+          if (token.isEmpty) return const LoginScreen();
+          return VerifyEmailScreen(token: token);
+        },
       ),
       GoRoute(
         path: AppRoutes.homeMap,

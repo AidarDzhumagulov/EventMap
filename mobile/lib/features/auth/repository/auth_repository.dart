@@ -112,6 +112,54 @@ class AuthRepository {
     return hasToken(_storage);
   }
 
+  /// Запрос ссылки сброса пароля.
+  /// Сервер всегда возвращает 204 (анти-enumeration), даже если email не найден.
+  Future<void> requestPasswordReset(String emailAddr) async {
+    try {
+      // Без interceptor'а — это публичный endpoint, токены не нужны.
+      final dio = Dio(BaseOptions(baseUrl: _dio.options.baseUrl));
+      await dio.post('/password/request-reset', data: {'email': emailAddr});
+    } on DioException catch (e) {
+      throw AuthException(_parseDioError(e));
+    }
+  }
+
+  /// Установка нового пароля по токену из письма.
+  Future<void> resetPassword({
+    required String token,
+    required String newPassword,
+  }) async {
+    try {
+      final dio = Dio(BaseOptions(baseUrl: _dio.options.baseUrl));
+      await dio.post('/password/reset', data: {
+        'token': token,
+        'password': newPassword,
+      });
+    } on DioException catch (e) {
+      throw AuthException(_parseDioError(e));
+    }
+  }
+
+  /// Подтверждение email по токену из письма.
+  Future<void> verifyEmail(String token) async {
+    try {
+      final dio = Dio(BaseOptions(baseUrl: _dio.options.baseUrl));
+      await dio.post('/email/verify', data: {'token': token});
+    } on DioException catch (e) {
+      throw AuthException(_parseDioError(e));
+    }
+  }
+
+  /// Запросить повторную отправку письма подтверждения.
+  /// Требует валидный access-токен — используем основной _dio.
+  Future<void> resendVerification() async {
+    try {
+      await _dio.post('/email/resend-verification');
+    } on DioException catch (e) {
+      throw AuthException(_parseDioError(e));
+    }
+  }
+
   String _parseDioError(DioException e) {
     if (e.type == DioExceptionType.connectionTimeout ||
         e.type == DioExceptionType.receiveTimeout ||

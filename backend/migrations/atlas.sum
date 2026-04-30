@@ -1,4 +1,4 @@
-h1:xfq52VN9zxNuyt4Im+0AO+lXrED6oHW1uXWAtHE6ZjY=
+h1:ERSJp9qoN1+vM8i8bkoLsKAbJ42B7Ma5UWEssPQQTEc=
 20260324104427_create_users_table.sql h1:9HnC2BeLgIlVj5smAqKbUjylJxlKIy5VJ7VKnkp7U4s=
 20260324105800_add_uuid_default.sql h1:slG1m1U/tQRM+skUIHiykvEdYkQg1uct4knac0vt5WA=
 20260324111738_add_password.sql h1:f64mP3U9mPGzdB7xmWEM4bLf7I81ev12CfW4VIeAg9E=
@@ -17,3 +17,6 @@ h1:xfq52VN9zxNuyt4Im+0AO+lXrED6oHW1uXWAtHE6ZjY=
 20260428100000_add_event_swipes.sql h1:4Zw3JV3ve+J2D+n451poZxqp0f8473Ak74Dmpop9w9w=
 20260428120000_perf_indexes.sql h1:ANRnKxvVh3i008V5wDo4pmwvzhEqrNF8dNnyp9yiLT0=
 20260428130000_add_refresh_tokens.sql h1:hg6ncBFtf4+VeCQk7duF/sQ4sE7v25FyXf9EDnvBM1A=
+20260429000000_add_email_verified.sql h1:/Z3ADxC+ri9Dm6tvD7IgAvUrV/NkOV9c7EpYIKVbptg=
+20260429000100_add_email_verification_tokens.sql h1:lfWjkeLapLNZsrTXBfaVKO4ym/CxgrDXglXxwfHUdBU=
+20260429000200_add_password_reset_tokens.sql h1:UioLfZ3yaRYwLetuEwvwjzq6gf9/UVEJ4xWn7ii4ZDw=

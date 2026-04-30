@@ -5,6 +5,7 @@ import (
 	"errors"
 	"event-map/core"
 	"event-map/internal/auth"
+	"event-map/internal/email"
 	"event-map/internal/handler"
 	"event-map/internal/middleware"
 	"event-map/internal/repository"
@@ -96,9 +97,16 @@ func run() error {
 
 	storage := core.NewStorage()
 
+	mailer := email.New()
+
 	userRepo := repository.NewUserRepository(db)
 	tokenRepo := repository.NewRefreshTokenRepository(db)
-	h := handler.NewHandler(userRepo, tokenRepo)
+	emailVerifyRepo := repository.NewEmailVerificationRepository(db)
+	passwordResetRepo := repository.NewPasswordResetRepository(db)
+
+	verificationHandler := handler.NewEmailVerificationHandler(userRepo, emailVerifyRepo, mailer)
+	passwordResetHandler := handler.NewPasswordResetHandler(userRepo, passwordResetRepo, tokenRepo, mailer)
+	h := handler.NewHandler(userRepo, tokenRepo, verificationHandler)
 	uploadHandler := handler.NewUploadHandler(storage)
 
 	mux.HandleFunc("/upload", authMW(uploadHandler.Upload))
@@ -109,6 +117,15 @@ func run() error {
 	mux.HandleFunc("/logout-all", authMW(h.LogoutAll))
 	mux.HandleFunc("/me", authMW(h.Me))
 	mux.HandleFunc("/me/update", authMW(h.UpdateMe))
+
+	// Email verification — verify публичный (по токену из письма),
+	// resend под auth (юзер должен быть залогинен).
+	mux.HandleFunc("/email/verify", pub(authLimiter.Middleware(verificationHandler.Verify)))
+	mux.HandleFunc("/email/resend-verification", authMW(authLimiter.Middleware(verificationHandler.Resend)))
+
+	// Password reset — оба публичные (юзер залочен из аккаунта). С rate limit.
+	mux.HandleFunc("/password/request-reset", pub(authLimiter.Middleware(passwordResetHandler.RequestReset)))
+	mux.HandleFunc("/password/reset", pub(authLimiter.Middleware(passwordResetHandler.Reset)))
 
 	categoryRepo := repository.NewCategoryRepository(db)
 	categoryHandler := handler.NewCategoryHandler(categoryRepo)
@@ -195,12 +212,11 @@ func run() error {
 		}
 	}()
 
-	// Background cleanup протухших refresh-токенов — раз в сутки.
-	// Если несколько подов — DELETE идемпотентен, страшного ничего, только лишняя нагрузка.
-	// Когда дойдём до k8s cron — переедет туда.
+	// Background cleanup протухших токенов (refresh, email_verification, password_reset).
+	// Раз в сутки. Если несколько подов — DELETE идемпотентен, лишняя нагрузка не критична.
 	bgCtx, bgCancel := context.WithCancel(context.Background())
 	defer bgCancel()
-	go runTokenCleanup(bgCtx, tokenRepo)
+	go runTokenCleanup(bgCtx, tokenRepo, emailVerifyRepo, passwordResetRepo)
 
 	// Ждём SIGTERM/SIGINT или ошибку запуска.
 	sigCh := make(chan os.Signal, 1)
@@ -224,37 +240,44 @@ func run() error {
 	return runErr
 }
 
-// runTokenCleanup — периодически чистит протухшие refresh-токены.
+// cleaner — общий интерфейс для CleanupExpired, чтобы один цикл чистил
+// все типы токенов одинаково.
+type cleaner interface {
+	CleanupExpired(ctx context.Context) (int64, error)
+}
+
+// runTokenCleanup — периодически чистит протухшие токены всех типов.
 // Запускается раз в сутки. Прерывается через context при shutdown.
-func runTokenCleanup(ctx context.Context, repo *repository.RefreshTokenRepository) {
+func runTokenCleanup(ctx context.Context, repos ...cleaner) {
 	ticker := time.NewTicker(24 * time.Hour)
 	defer ticker.Stop()
 
 	// Первый прогон сразу — не ждём 24 часа после рестарта.
-	doCleanup(ctx, repo)
+	doCleanupAll(ctx, repos)
 
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			doCleanup(ctx, repo)
+			doCleanupAll(ctx, repos)
 		}
 	}
 }
 
-func doCleanup(ctx context.Context, repo *repository.RefreshTokenRepository) {
-	// Отдельный таймаут — чтобы зависший DELETE не висел вечно.
-	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
-	defer cancel()
-
-	deleted, err := repo.CleanupExpired(ctx)
-	if err != nil {
-		slog.Error("token cleanup failed", "err", err)
-		return
-	}
-	if deleted > 0 {
-		slog.Info("token cleanup complete", "deleted", deleted)
+func doCleanupAll(ctx context.Context, repos []cleaner) {
+	for _, repo := range repos {
+		// Отдельный таймаут на каждый — чтобы один зависший не блокировал остальные.
+		c, cancel := context.WithTimeout(ctx, 30*time.Second)
+		deleted, err := repo.CleanupExpired(c)
+		cancel()
+		if err != nil {
+			slog.Error("token cleanup failed", "err", err)
+			continue
+		}
+		if deleted > 0 {
+			slog.Info("token cleanup complete", "deleted", deleted)
+		}
 	}
 }
 

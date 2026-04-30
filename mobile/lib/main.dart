@@ -69,12 +69,28 @@ class _EventMapAppState extends ConsumerState<EventMapApp> {
   }
 
   void _handleLink(Uri uri) {
-    // eventmap://event/{id}
-    if (uri.scheme == 'eventmap' && uri.host == 'event') {
-      final id = uri.pathSegments.isNotEmpty ? uri.pathSegments.first : null;
-      if (id != null && id.isNotEmpty) {
-        ref.read(appRouterProvider).go('/event/$id');
-      }
+    if (uri.scheme != 'eventmap') return;
+    final router = ref.read(appRouterProvider);
+
+    switch (uri.host) {
+      // eventmap://event/{id}
+      case 'event':
+        final id = uri.pathSegments.isNotEmpty ? uri.pathSegments.first : null;
+        if (id != null && id.isNotEmpty) {
+          router.go('/event/$id');
+        }
+      // eventmap://reset-password?token=...
+      case 'reset-password':
+        final token = uri.queryParameters['token'];
+        if (token != null && token.isNotEmpty) {
+          router.go('/reset-password?token=$token');
+        }
+      // eventmap://verify-email?token=...
+      case 'verify-email':
+        final token = uri.queryParameters['token'];
+        if (token != null && token.isNotEmpty) {
+          router.go('/verify-email?token=$token');
+        }
     }
   }
 

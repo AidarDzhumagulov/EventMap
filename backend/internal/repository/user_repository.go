@@ -27,17 +27,19 @@ func NewUserRepository(db *sqlx.DB) *UserRepository {
 
 func (r *UserRepository) Create(ctx context.Context, user models.User) (models.User, error) {
 	var created models.User
-	query := `INSERT INTO users (username, role, rating, password, email)
-	          VALUES ($1, $2, $3, $4, $5)
-	          RETURNING id, email, username, role, rating, avatar_url`
-	err := r.db.GetContext(ctx, &created, query, user.Username, user.Role, user.Rating, user.PasswordHash, user.Email)
+	query := `INSERT INTO users (username, role, rating, password, email, email_verified)
+	          VALUES ($1, $2, $3, $4, $5, $6)
+	          RETURNING id, email, email_verified, username, role, rating, avatar_url`
+	err := r.db.GetContext(ctx, &created, query,
+		user.Username, user.Role, user.Rating, user.PasswordHash, user.Email, user.EmailVerified,
+	)
 	return created, err
 }
 
 func (r *UserRepository) GetByID(ctx context.Context, id uuid.UUID) (models.User, error) {
 	var user models.User
 	err := r.db.GetContext(ctx, &user, `
-		SELECT u.id, u.email, u.username, u.role, u.avatar_url,
+		SELECT u.id, u.email, u.email_verified, u.username, u.role, u.avatar_url,
 		    COALESCE((
 		        SELECT COUNT(em.user_id)::float
 		        FROM events e
@@ -100,7 +102,9 @@ func (r *UserRepository) IsUsernameTakenByOther(ctx context.Context, username st
 func (r *UserRepository) Update(ctx context.Context, id uuid.UUID, username string, avatarURL *string) (models.User, error) {
 	var user models.User
 	err := r.db.GetContext(ctx, &user,
-		"UPDATE users SET username = $1, avatar_url = COALESCE($2, avatar_url) WHERE id = $3 RETURNING id, email, username, role, rating, avatar_url",
+		`UPDATE users SET username = $1, avatar_url = COALESCE($2, avatar_url)
+		 WHERE id = $3
+		 RETURNING id, email, email_verified, username, role, rating, avatar_url`,
 		username, avatarURL, id,
 	)
 	return user, err

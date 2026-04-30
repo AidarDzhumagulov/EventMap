@@ -16,8 +16,9 @@ import (
 )
 
 type Handler struct {
-	userRepo  *repository.UserRepository
-	tokenRepo *repository.RefreshTokenRepository
+	userRepo     *repository.UserRepository
+	tokenRepo    *repository.RefreshTokenRepository
+	verification *EmailVerificationHandler // для отправки письма после регистрации
 }
 
 type tokenResponse struct {
@@ -25,10 +26,15 @@ type tokenResponse struct {
 	RefreshToken string `json:"refresh_token"`
 }
 
-func NewHandler(userRepo *repository.UserRepository, tokenRepo *repository.RefreshTokenRepository) *Handler {
+func NewHandler(
+	userRepo *repository.UserRepository,
+	tokenRepo *repository.RefreshTokenRepository,
+	verification *EmailVerificationHandler,
+) *Handler {
 	return &Handler{
-		userRepo:  userRepo,
-		tokenRepo: tokenRepo,
+		userRepo:     userRepo,
+		tokenRepo:    tokenRepo,
+		verification: verification,
 	}
 }
 
@@ -74,11 +80,12 @@ func (h *Handler) RegisterUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	newUser := models.User{
-		Email:        registerUser.Email,
-		Username:     registerUser.Username,
-		Role:         "user",
-		Rating:       0,
-		PasswordHash: hash,
+		Email:         registerUser.Email,
+		EmailVerified: false, // нужно подтвердить через письмо
+		Username:      registerUser.Username,
+		Role:          "user",
+		Rating:        0,
+		PasswordHash:  hash,
 	}
 
 	created, err := h.userRepo.Create(ctx, newUser)
@@ -86,6 +93,12 @@ func (h *Handler) RegisterUser(w http.ResponseWriter, r *http.Request) {
 		slog.Error("RegisterUser: db error", "err", err)
 		http.Error(w, "Ошибка при записи в БД", http.StatusInternalServerError)
 		return
+	}
+
+	// Отправляем письмо подтверждения. Не блокируем регистрацию — юзер сможет
+	// запросить resend если письмо потерялось.
+	if err := h.verification.SendVerificationEmail(ctx, created.ID, created.Email, created.Username); err != nil {
+		slog.Warn("RegisterUser: send verification failed (non-blocking)", "err", err, "user_id", created.ID)
 	}
 
 	w.Header().Set("Content-Type", "application/json")

@@ -188,6 +188,26 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
               return null;
             },
           ),
+          const SizedBox(height: 6),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton(
+              onPressed: () => context.push(AppRoutes.forgotPassword),
+              style: TextButton.styleFrom(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              child: const Text(
+                'Забыл пароль?',
+                style: TextStyle(
+                    color: AppColors.primary,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500),
+              ),
+            ),
+          ),
         ],
       ),
     );
