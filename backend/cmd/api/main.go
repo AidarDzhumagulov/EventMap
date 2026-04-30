@@ -36,9 +36,18 @@ func run() error {
 		log.Println("godotenv: .env не найден, используем переменные окружения")
 	}
 
-	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
-		Level: slog.LevelDebug,
-	})))
+	// LOG_FORMAT=json для прода (структурированные логи для Loki/CloudWatch/etc).
+	// По умолчанию text — человекочитаемый формат для dev.
+	logLevel := slog.LevelDebug
+	if os.Getenv("LOG_LEVEL") == "info" {
+		logLevel = slog.LevelInfo
+	}
+	opts := &slog.HandlerOptions{Level: logLevel}
+	var logHandler slog.Handler = slog.NewTextHandler(os.Stdout, opts)
+	if os.Getenv("LOG_FORMAT") == "json" {
+		logHandler = slog.NewJSONHandler(os.Stdout, opts)
+	}
+	slog.SetDefault(slog.New(logHandler))
 
 	// Падаем сразу если JWT_SECRET не задан или короткий — чтобы не выкатить
 	// прод с дырой "любой может подделать токен".
