@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../../core/theme.dart';
+import '../../../core/widgets/skeletons.dart';
 import '../../../models/event_model.dart';
 import '../../event/screens/event_detail_screen.dart';
 import '../providers/saved_provider.dart';
@@ -34,8 +35,11 @@ class SavedScreen extends ConsumerWidget {
             ),
             Expanded(
               child: eventsAsync.when(
-                loading: () => const Center(
-                  child: CircularProgressIndicator(color: AppColors.primary),
+                loading: () => ListView.separated(
+                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+                  itemCount: 5,
+                  separatorBuilder: (_, __) => const SizedBox(height: 12),
+                  itemBuilder: (_, __) => const SavedListItemSkeleton(),
                 ),
                 error: (_, __) => Center(
                   child: Column(

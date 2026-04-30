@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 
 import '../../../core/network/dio_client.dart';
 import '../../../core/theme.dart';
+import '../../../core/widgets/skeletons.dart';
 import '../../../models/event_model.dart';
 import '../../map/providers/events_provider.dart';
 import '../../map/repository/event_repository.dart';
@@ -235,8 +236,15 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen>
         ],
       ),
       body: asyncState.when(
-        loading: () => const Center(
-          child: CircularProgressIndicator(color: AppColors.primary),
+        loading: () => SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+            child: SizedBox(
+              width: double.infinity,
+              height: MediaQuery.of(context).size.height * 0.63,
+              child: const EventCardSkeleton(),
+            ),
+          ),
         ),
         error: (_, __) => _buildError(),
         data: (events) {

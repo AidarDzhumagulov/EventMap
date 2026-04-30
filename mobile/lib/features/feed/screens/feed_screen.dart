@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../../core/theme.dart';
+import '../../../core/widgets/skeletons.dart';
 import '../../../models/event_model.dart';
 import '../../../routes/app_router.dart';
 import '../../event/screens/event_detail_screen.dart';
@@ -127,10 +128,7 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
             const SizedBox(height: 8),
             Expanded(
               child: feedState.isLoading
-                  ? const Center(
-                      child:
-                          CircularProgressIndicator(color: AppColors.primary),
-                    )
+                  ? const EventListSkeleton(count: 4)
                   : feedState.error != null && feedState.events.isEmpty
                       ? Center(
                           child: Column(

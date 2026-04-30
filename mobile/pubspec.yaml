@@ -48,6 +48,7 @@ dependencies:
   flutter_map_cache: ^2.1.0
   dio_cache_interceptor: ^4.0.6
   flutter_map_marker_cluster: ^1.4.0
+  shimmer: ^3.0.0
 
 dev_dependencies:
   flutter_test:

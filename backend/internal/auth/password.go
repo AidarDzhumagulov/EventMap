@@ -29,14 +29,18 @@ func HashPassword(password string) (string, error) {
 // Возвращает (needsRehash=true, nil) если пароль валиден, но был
 // захэширован legacy-способом — вызывающий код должен пересохранить хэш
 // через `HashPassword` для перехода на новый формат.
+//
+// Legacy путь (SHA256+SALT перед bcrypt) — антипаттерн (см. password.go комменты),
+// оставлен только для входа старых юзеров. После их первого логина пароль
+// перехэшируется в новый формат, и зависимость от SALT для них пропадает.
+// Когда все старые юзеры мигрируют — этот блок можно удалить вместе с ENV SALT.
 func VerifyPassword(stored, password string) (needsRehash bool, err error) {
 	// Современный способ: bcrypt(password).
 	if err := bcrypt.CompareHashAndPassword([]byte(stored), []byte(password)); err == nil {
 		return false, nil
 	}
 
-	// Legacy: bcrypt(sha256(password + global_salt)).
-	// Оставлено для обратной совместимости со старыми юзерами.
+	// Legacy: bcrypt(sha256(password + global_salt)). DEPRECATED.
 	salt := os.Getenv("SALT")
 	digest := sha256.Sum256([]byte(password + salt))
 	if err := bcrypt.CompareHashAndPassword([]byte(stored), digest[:]); err == nil {

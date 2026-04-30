@@ -1,6 +1,7 @@
 class UserModel {
   final String id;
   final String email;
+  final bool emailVerified;
   final String username;
   final String role;
   final double rating;
@@ -9,6 +10,7 @@ class UserModel {
   const UserModel({
     required this.id,
     required this.email,
+    required this.emailVerified,
     required this.username,
     required this.role,
     required this.rating,
@@ -19,6 +21,8 @@ class UserModel {
     return UserModel(
       id: json['id'] as String,
       email: json['email'] as String,
+      // Совместимость с бэком до миграции — если поля нет, считаем подтверждённым.
+      emailVerified: json['email_verified'] as bool? ?? true,
       username: json['username'] as String,
       role: json['role'] as String,
       rating: (json['rating'] as num).toDouble(),

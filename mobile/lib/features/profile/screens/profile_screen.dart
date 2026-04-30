@@ -2,8 +2,10 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/snackbar.dart';
 import '../../../core/theme.dart';
 import '../../../features/auth/providers/auth_provider.dart';
+import '../../../features/auth/repository/auth_repository.dart';
 import '../../../features/event/screens/my_events_screen.dart';
 import '../repository/user_repository.dart';
 import 'edit_profile_screen.dart';
@@ -135,6 +137,10 @@ class ProfileScreen extends ConsumerWidget {
                   style: Theme.of(context).textTheme.bodyMedium,
                 ),
               ),
+              if (!user.emailVerified) ...[
+                const SizedBox(height: 16),
+                _EmailNotVerifiedBanner(),
+              ],
               const SizedBox(height: 32),
               // Ранг
               Container(
@@ -349,5 +355,98 @@ class ProfileScreen extends ConsumerWidget {
       default:
         return 'Участник';
     }
+  }
+}
+
+/// Баннер «Email не подтверждён» с кнопкой повторной отправки.
+/// Показывается только когда `user.emailVerified == false`.
+class _EmailNotVerifiedBanner extends ConsumerStatefulWidget {
+  @override
+  ConsumerState<_EmailNotVerifiedBanner> createState() =>
+      _EmailNotVerifiedBannerState();
+}
+
+class _EmailNotVerifiedBannerState
+    extends ConsumerState<_EmailNotVerifiedBanner> {
+  bool _loading = false;
+  bool _sent = false;
+
+  Future<void> _resend() async {
+    if (_loading || _sent) return;
+    setState(() => _loading = true);
+    try {
+      await ref.read(authRepositoryProvider).resendVerification();
+      if (mounted) {
+        setState(() => _sent = true);
+        context.showSuccess('Письмо отправлено. Проверь почту.');
+      }
+    } on AuthException catch (e) {
+      if (mounted) context.showError(e.message);
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    const amber = Color(0xFFFFB347);
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: amber.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: amber.withValues(alpha: 0.4)),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.warning_amber_rounded, color: amber, size: 22),
+          const SizedBox(width: 10),
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Email не подтверждён',
+                  style: TextStyle(
+                    color: AppColors.textPrimary,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                  ),
+                ),
+                SizedBox(height: 2),
+                Text(
+                  'Подтверди email из письма',
+                  style: TextStyle(
+                      color: AppColors.textSecondary, fontSize: 12),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          TextButton(
+            onPressed: _sent || _loading ? null : _resend,
+            style: TextButton.styleFrom(
+              foregroundColor: amber,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              minimumSize: Size.zero,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+            child: _loading
+                ? SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2, color: amber),
+                  )
+                : Text(
+                    _sent ? 'Отправлено' : 'Отправить',
+                    style: const TextStyle(
+                        fontSize: 13, fontWeight: FontWeight.w600),
+                  ),
+          ),
+        ],
+      ),
+    );
   }
 }
