@@ -208,7 +208,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen>
             ),
             validator: (value) {
               if (value == null || value.isEmpty) return 'Введи пароль';
-              if (value.length < 6) return 'Минимум 6 символов';
+              if (value.length < 8) return 'Минимум 8 символов';
               return null;
             },
           ),

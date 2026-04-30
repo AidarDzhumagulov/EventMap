@@ -46,6 +46,7 @@ func (h *Handler) RegisterUser(w http.ResponseWriter, r *http.Request) {
 
 	var registerUser models.RegisterUser
 	if err := json.NewDecoder(r.Body).Decode(&registerUser); err != nil {
+		slog.Info("RegisterUser: bad json", "err", err)
 		http.Error(w, "Неверный формат JSON", http.StatusBadRequest)
 		return
 	}
@@ -54,20 +55,27 @@ func (h *Handler) RegisterUser(w http.ResponseWriter, r *http.Request) {
 	registerUser.Username = strings.TrimSpace(registerUser.Username)
 
 	if registerUser.Email == "" || registerUser.Username == "" || registerUser.Password == "" {
+		slog.Info("RegisterUser: missing fields",
+			"email_empty", registerUser.Email == "",
+			"username_empty", registerUser.Username == "",
+			"password_empty", registerUser.Password == "")
 		http.Error(w, "email, username и password обязательны", http.StatusBadRequest)
 		return
 	}
 	if len(registerUser.Password) < 8 {
+		slog.Info("RegisterUser: password too short", "len", len(registerUser.Password))
 		http.Error(w, "Пароль должен быть не короче 8 символов", http.StatusBadRequest)
 		return
 	}
 
 	ctx := r.Context()
 	if h.userRepo.IsExist(ctx, registerUser.Email) {
+		slog.Info("RegisterUser: email already exists", "email", registerUser.Email)
 		http.Error(w, "Email already exist", http.StatusBadRequest)
 		return
 	}
 	if h.userRepo.IsUsernameExist(ctx, registerUser.Username) {
+		slog.Info("RegisterUser: username already exists", "username", registerUser.Username)
 		http.Error(w, "Username already exist", http.StatusBadRequest)
 		return
 	}
