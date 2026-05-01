@@ -1,29 +1,20 @@
 package handler
 
 import (
-	"encoding/json"
-	"errors"
 	"event-map/internal/middleware"
-	"event-map/internal/repository"
+	"event-map/internal/service"
 	"net/http"
-
-	"github.com/google/uuid"
 )
 
-var validStatuses = map[string]bool{"go": true, "think": true, "decline": true}
-
 type EventMemberHandler struct {
-	memberRepo *repository.EventMemberRepository
-	eventRepo  *repository.EventRepository
+	rsvp *service.RsvpService
 }
 
-func NewEventMemberHandler(
-	memberRepo *repository.EventMemberRepository,
-	eventRepo *repository.EventRepository,
-) *EventMemberHandler {
-	return &EventMemberHandler{memberRepo: memberRepo, eventRepo: eventRepo}
+func NewEventMemberHandler(rsvp *service.RsvpService) *EventMemberHandler {
+	return &EventMemberHandler{rsvp: rsvp}
 }
 
+// POST /events/join?id=<event_id>&status=go|think|decline
 func (h *EventMemberHandler) Join(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Разрешен только POST метод", http.StatusMethodNotAllowed)
@@ -36,38 +27,22 @@ func (h *EventMemberHandler) Join(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	eventIDStr := r.URL.Query().Get("id")
-	eventID, err := uuid.Parse(eventIDStr)
+	eventID, ok := parseUUIDQuery(w, r, "id")
+	if !ok {
+		return
+	}
+
+	member, err := h.rsvp.Join(r.Context(), eventID, userID, r.URL.Query().Get("status"))
 	if err != nil {
-		http.Error(w, "Неверный ID события", http.StatusBadRequest)
+		writeServiceError(w, err)
 		return
 	}
 
-	status := r.URL.Query().Get("status")
-	if status == "" {
-		status = "go"
-	}
-	if !validStatuses[status] {
-		http.Error(w, "Статус должен быть: go, think, decline", http.StatusBadRequest)
-		return
-	}
-
-	member, err := h.memberRepo.JoinAtomic(r.Context(), eventID, userID, status)
-	if err != nil {
-		if errors.Is(err, repository.ErrEventFull) {
-			http.Error(w, "Мест нет", http.StatusConflict)
-			return
-		}
-		http.Error(w, "Ошибка записи на событие", http.StatusInternalServerError)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(member)
+	writeJSON(w, http.StatusCreated, member)
 }
 
-// GET /events/my-status?id=<event_id> — возвращает статус текущего пользователя
+// GET /events/my-status?id=<event_id> — статус текущего юзера на событии.
+// 204 если юзер не записан.
 func (h *EventMemberHandler) GetMyStatus(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "Разрешен только GET метод", http.StatusMethodNotAllowed)
@@ -80,47 +55,46 @@ func (h *EventMemberHandler) GetMyStatus(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	eventID, err := uuid.Parse(r.URL.Query().Get("id"))
-	if err != nil {
-		http.Error(w, "Неверный ID события", http.StatusBadRequest)
+	eventID, ok := parseUUIDQuery(w, r, "id")
+	if !ok {
 		return
 	}
 
-	status, err := h.memberRepo.GetStatus(r.Context(), eventID, userID)
+	status, err := h.rsvp.GetMyStatus(r.Context(), eventID, userID)
 	if err != nil {
-		// Пользователь не записан — 204 No Content
+		writeServiceError(w, err)
+		return
+	}
+	if status == "" {
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{"status": status})
+	writeJSON(w, http.StatusOK, map[string]string{"status": status})
 }
 
-// GET /events/members?id=<event_id> — список участников события
+// GET /events/members?id=<event_id> — список участников.
 func (h *EventMemberHandler) GetMembers(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "Разрешен только GET метод", http.StatusMethodNotAllowed)
 		return
 	}
 
-	eventID, err := uuid.Parse(r.URL.Query().Get("id"))
-	if err != nil {
-		http.Error(w, "Неверный ID события", http.StatusBadRequest)
+	eventID, ok := parseUUIDQuery(w, r, "id")
+	if !ok {
 		return
 	}
 
-	members, err := h.memberRepo.GetMembers(r.Context(), eventID)
+	members, err := h.rsvp.GetMembers(r.Context(), eventID)
 	if err != nil {
-		http.Error(w, "Ошибка получения участников", http.StatusInternalServerError)
+		writeServiceError(w, err)
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(members)
+	writeJSON(w, http.StatusOK, members)
 }
 
-// POST /events/join-by-code?code=XXXXXX — вступить в закрытое событие по коду
+// POST /events/join-by-code?code=XXXXXX — для приватных событий.
 func (h *EventMemberHandler) JoinByCode(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Разрешен только POST метод", http.StatusMethodNotAllowed)
@@ -133,31 +107,13 @@ func (h *EventMemberHandler) JoinByCode(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	code := r.URL.Query().Get("code")
-	if code == "" {
-		http.Error(w, "Укажите код приглашения", http.StatusBadRequest)
-		return
-	}
-
-	event, err := h.eventRepo.GetByInviteCode(r.Context(), code)
+	member, err := h.rsvp.JoinByCode(r.Context(), r.URL.Query().Get("code"), userID)
 	if err != nil {
-		http.Error(w, "Неверный код приглашения", http.StatusNotFound)
+		writeServiceError(w, err)
 		return
 	}
 
-	member, err := h.memberRepo.JoinAtomic(r.Context(), event.ID, userID, "go")
-	if err != nil {
-		if errors.Is(err, repository.ErrEventFull) {
-			http.Error(w, "Мест нет", http.StatusConflict)
-			return
-		}
-		http.Error(w, "Ошибка записи на событие", http.StatusInternalServerError)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(member)
+	writeJSON(w, http.StatusCreated, member)
 }
 
 func (h *EventMemberHandler) Leave(w http.ResponseWriter, r *http.Request) {
@@ -172,15 +128,13 @@ func (h *EventMemberHandler) Leave(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	eventIDStr := r.URL.Query().Get("id")
-	eventID, err := uuid.Parse(eventIDStr)
-	if err != nil {
-		http.Error(w, "Неверный ID события", http.StatusBadRequest)
+	eventID, ok := parseUUIDQuery(w, r, "id")
+	if !ok {
 		return
 	}
 
-	if err := h.memberRepo.Leave(r.Context(), eventID, userID); err != nil {
-		http.Error(w, "Ошибка отмены участия", http.StatusInternalServerError)
+	if err := h.rsvp.Leave(r.Context(), eventID, userID); err != nil {
+		writeServiceError(w, err)
 		return
 	}
 

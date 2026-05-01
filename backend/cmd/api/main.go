@@ -150,7 +150,15 @@ func run() error {
 	mux.HandleFunc("/locations/create", authMW(locationHandler.CreateLocation))
 
 	eventRepo := repository.NewEventRepository(db)
-	eventHandler := handler.NewEventHandler(eventRepo)
+	swipeRepo := repository.NewEventSwipeRepository(db)
+	savedRepo := repository.NewSavedEventRepository(db)
+	memberRepo := repository.NewEventMemberRepository(db)
+
+	// Service-слой для events: CRUD, GetFeed, save/swipe.
+	eventService := service.NewEventService(eventRepo, swipeRepo, savedRepo)
+	rsvpService := service.NewRsvpService(memberRepo, eventRepo)
+
+	eventHandler := handler.NewEventHandler(eventService)
 	mux.HandleFunc("/events", authMW(eventHandler.GetEvents))
 	mux.HandleFunc("/events/create", authMW(eventHandler.CreateEvent))
 	mux.HandleFunc("/events/detail", authMW(eventHandler.GetEvent))
@@ -160,20 +168,17 @@ func run() error {
 	mux.HandleFunc("/events/update", authMW(eventHandler.UpdateEvent))
 	mux.HandleFunc("/events/delete", authMW(eventHandler.DeleteEvent))
 
-	swipeRepo := repository.NewEventSwipeRepository(db)
-	swipeHandler := handler.NewEventSwipeHandler(swipeRepo)
+	swipeHandler := handler.NewEventSwipeHandler(eventService)
 	mux.HandleFunc("/events/skip", authMW(swipeHandler.Skip))
 
-	memberRepo := repository.NewEventMemberRepository(db)
-	memberHandler := handler.NewEventMemberHandler(memberRepo, eventRepo)
+	memberHandler := handler.NewEventMemberHandler(rsvpService)
 	mux.HandleFunc("/events/join", authMW(memberHandler.Join))
 	mux.HandleFunc("/events/join-by-code", authMW(memberHandler.JoinByCode))
 	mux.HandleFunc("/events/leave", authMW(memberHandler.Leave))
 	mux.HandleFunc("/events/my-status", authMW(memberHandler.GetMyStatus))
 	mux.HandleFunc("/events/members", authMW(memberHandler.GetMembers))
 
-	savedRepo := repository.NewSavedEventRepository(db)
-	savedHandler := handler.NewSavedEventHandler(savedRepo)
+	savedHandler := handler.NewSavedEventHandler(eventService)
 	mux.HandleFunc("/events/save", authMW(func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodPost:

@@ -1,20 +1,17 @@
 package handler
 
 import (
-	"encoding/json"
 	"event-map/internal/middleware"
-	"event-map/internal/repository"
+	"event-map/internal/service"
 	"net/http"
-
-	"github.com/google/uuid"
 )
 
 type SavedEventHandler struct {
-	savedRepo *repository.SavedEventRepository
+	events *service.EventService
 }
 
-func NewSavedEventHandler(savedRepo *repository.SavedEventRepository) *SavedEventHandler {
-	return &SavedEventHandler{savedRepo: savedRepo}
+func NewSavedEventHandler(events *service.EventService) *SavedEventHandler {
+	return &SavedEventHandler{events: events}
 }
 
 // POST /events/save?id=<event_id>
@@ -30,14 +27,13 @@ func (h *SavedEventHandler) Save(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	eventID, err := uuid.Parse(r.URL.Query().Get("id"))
-	if err != nil {
-		http.Error(w, "Неверный ID события", http.StatusBadRequest)
+	eventID, ok := parseUUIDQuery(w, r, "id")
+	if !ok {
 		return
 	}
 
-	if err := h.savedRepo.Save(r.Context(), eventID, userID); err != nil {
-		http.Error(w, "Ошибка сохранения", http.StatusInternalServerError)
+	if err := h.events.SaveEvent(r.Context(), userID, eventID); err != nil {
+		writeServiceError(w, err)
 		return
 	}
 
@@ -57,14 +53,13 @@ func (h *SavedEventHandler) Unsave(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	eventID, err := uuid.Parse(r.URL.Query().Get("id"))
-	if err != nil {
-		http.Error(w, "Неверный ID события", http.StatusBadRequest)
+	eventID, ok := parseUUIDQuery(w, r, "id")
+	if !ok {
 		return
 	}
 
-	if err := h.savedRepo.Unsave(r.Context(), eventID, userID); err != nil {
-		http.Error(w, "Ошибка удаления", http.StatusInternalServerError)
+	if err := h.events.UnsaveEvent(r.Context(), userID, eventID); err != nil {
+		writeServiceError(w, err)
 		return
 	}
 
@@ -84,20 +79,18 @@ func (h *SavedEventHandler) IsSaved(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	eventID, err := uuid.Parse(r.URL.Query().Get("id"))
-	if err != nil {
-		http.Error(w, "Неверный ID события", http.StatusBadRequest)
+	eventID, ok := parseUUIDQuery(w, r, "id")
+	if !ok {
 		return
 	}
 
-	saved, err := h.savedRepo.IsSaved(r.Context(), eventID, userID)
+	saved, err := h.events.IsEventSaved(r.Context(), userID, eventID)
 	if err != nil {
-		http.Error(w, "Ошибка проверки", http.StatusInternalServerError)
+		writeServiceError(w, err)
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]bool{"saved": saved})
+	writeJSON(w, http.StatusOK, map[string]bool{"saved": saved})
 }
 
 // GET /events/saved
@@ -113,12 +106,11 @@ func (h *SavedEventHandler) GetSaved(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	events, err := h.savedRepo.GetSavedByUser(r.Context(), userID)
+	events, err := h.events.GetSavedEvents(r.Context(), userID)
 	if err != nil {
-		http.Error(w, "Ошибка получения сохранённых событий", http.StatusInternalServerError)
+		writeServiceError(w, err)
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(events)
+	writeJSON(w, http.StatusOK, events)
 }

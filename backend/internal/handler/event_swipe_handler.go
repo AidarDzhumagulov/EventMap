@@ -2,23 +2,19 @@ package handler
 
 import (
 	"event-map/internal/middleware"
-	"event-map/internal/repository"
-	"log/slog"
+	"event-map/internal/service"
 	"net/http"
-
-	"github.com/google/uuid"
 )
 
 type EventSwipeHandler struct {
-	swipeRepo *repository.EventSwipeRepository
+	events *service.EventService
 }
 
-func NewEventSwipeHandler(swipeRepo *repository.EventSwipeRepository) *EventSwipeHandler {
-	return &EventSwipeHandler{swipeRepo: swipeRepo}
+func NewEventSwipeHandler(events *service.EventService) *EventSwipeHandler {
+	return &EventSwipeHandler{events: events}
 }
 
 // POST /events/skip?id=<event_id>
-// Записывает скип события юзером — анти-повтор в свайп-ленте.
 func (h *EventSwipeHandler) Skip(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Разрешен только POST метод", http.StatusMethodNotAllowed)
@@ -31,15 +27,13 @@ func (h *EventSwipeHandler) Skip(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	eventID, err := uuid.Parse(r.URL.Query().Get("id"))
-	if err != nil {
-		http.Error(w, "Неверный ID события", http.StatusBadRequest)
+	eventID, ok := parseUUIDQuery(w, r, "id")
+	if !ok {
 		return
 	}
 
-	if err := h.swipeRepo.MarkSkipped(r.Context(), userID, eventID); err != nil {
-		slog.Error("Skip: db error", "err", err, "user_id", userID, "event_id", eventID)
-		http.Error(w, "Ошибка записи скипа", http.StatusInternalServerError)
+	if err := h.events.SkipEvent(r.Context(), userID, eventID); err != nil {
+		writeServiceError(w, err)
 		return
 	}
 
